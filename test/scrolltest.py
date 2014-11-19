@@ -36,3 +36,4 @@ class   Application(Frame):
 a = Application()
 a.mainframe()
 a.mainloop()
+print(1)

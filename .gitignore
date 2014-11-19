@@ -9,3 +9,4 @@ formAppNumber.xml
 .idea
 cim.eml
 cim.iml
+*.pydevproject
