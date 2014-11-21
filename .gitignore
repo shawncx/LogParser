@@ -10,3 +10,4 @@ formAppNumber.xml
 cim.eml
 cim.iml
 *.pydevproject
+*.csv

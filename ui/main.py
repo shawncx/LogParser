@@ -25,9 +25,9 @@ class LogUI(Frame):
         self.parent = parent
         
         self.filemodels = []
-        filemodel1 = FileModel("C:/Users/chen_xi/test1.csv", searchconds=[], relation="and", joincondtuples=[])
-        filemodel2 = FileModel("C:/Users/chen_xi/test2.csv", searchconds=[], relation="and", joincondtuples=[])
-        self.filemodels = [filemodel1, filemodel2]
+#         filemodel1 = FileModel("C:/Users/chen_xi/test1.csv", searchconds=[], relation="and", joincondtuples=[])
+#         filemodel2 = FileModel("C:/Users/chen_xi/test2.csv", searchconds=[], relation="and", joincondtuples=[])
+#         self.filemodels = [filemodel1, filemodel2]
         
         self._initUI()
         self.selectedfileindex = -1
@@ -68,10 +68,10 @@ class LogUI(Frame):
         vsl.config(command=self.filelist.yview)
         
         upbtn = Button(frame, text="Up", width=7, command=self._upfile)
-        upbtn.grid(row=1, column=4, padx=5, pady=5)
+        upbtn.grid(row=1, column=4, padx=5, pady=5, sticky=S)
         
         downbtn = Button(frame, text="Down", width=7, command=self._downfile)
-        downbtn.grid(row=2, column=4, padx=5, pady=5)
+        downbtn.grid(row=2, column=4, padx=5, pady=5, sticky=N)
         
         newbtn = Button(frame, text="New", width=7, command=self._addfile)
         newbtn.grid(row=4, column=1, pady=5, sticky=E + S)
@@ -175,27 +175,94 @@ class LogUI(Frame):
             cond = condtuple[0]
             tofilename = condtuple[1]
             self.joincondlist.insert(END, cond.tostring() + " in " + tofilename)
+            
+    
+    def _initfieldspanel(self):
+        frame = Frame(self)
+        frame.grid(row=0, column=3, sticky=E + W + S + N)
+        
+        label = Label(frame, text="Fields List: ")
+        label.grid(row=0, column=0, sticky=N + W)
+        
+        self.fieldlist = Listbox(frame)
+        self.fieldlist.grid(row=1, column=0, rowspan=2)
+        
+        vsl = Scrollbar(frame, orient=VERTICAL)
+        vsl.grid(row=1, column=1, rowspan=2, sticky=N + S + W)
+        
+        hsl = Scrollbar(frame, orient=HORIZONTAL)
+        hsl.grid(row=3, column=0, sticky=W + E + N)
+        
+        self.fieldlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        
+        hsl.config(command=self.filelist.xview)
+        vsl.config(command=self.filelist.yview)
+        
+        addbtn = Button(frame, text="Add", width=7, command=self._addfield)
+        addbtn.grid(row=1, column=2, padx=5, pady=5, sticky=S)
+        
+        removebtn = Button(frame, text="Remove", width=7, command=self._removefield)
+        removebtn.grid(row=2, column=2, padx=5, pady=5, sticky=N)
+        
+        label = Label(frame, text="Display Fields List: ")
+        label.grid(row=0, column=3, sticky=N + W)
+        
+        self.displayfieldlist = Listbox(frame)
+        self.displayfieldlist.grid(row=1, column=3, rowspan=2)
+        
+        vsl = Scrollbar(frame, orient=VERTICAL)
+        vsl.grid(row=1, column=4, rowspan=2, sticky=N + S + W)
+        
+        hsl = Scrollbar(frame, orient=HORIZONTAL)
+        hsl.grid(row=3, column=3, sticky=W + E + N)
+        
+        self.displayfieldlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        
+        hsl.config(command=self.filelist.xview)
+        vsl.config(command=self.filelist.yview)
+    
+        
+    def __addfield(self):
+        pass
+    
+    
+    def _removefield(self):
+        pass
+    
+    def _inflatefieldpanel(self, filemodel):
+        filename = filemodel.filename
+        fields = csvhandler.getfields(filename)
+        displayfields = filemodel.displayfields
+        displayfielddict = set(displayfields)
+        
+        self.fieldlist.delete(0, END)
+        self.displayfieldlist.delete(0, END)
+        for field in fields:
+            if field in displayfielddict:
+                self.displayfieldlist.insert(END, field)
+            else:
+                self.fieldlist.insert(END, field)
         
     
     def _initconsole(self):
         
         separator = Separator(self, orient=HORIZONTAL)
-        separator.grid(row=1, columnspan=3, sticky=W + E, padx=5, pady=5)
+        separator.grid(row=1, columnspan=4, sticky=W + E, padx=5, pady=5)
         
         self.console = Text(self)
-        self.console.grid(row=2, columnspan=3, sticky=W + E, padx=5, pady=5)
+        self.console.grid(row=2, columnspan=4, sticky=W + E, padx=5, pady=5)
         
         vsl = Scrollbar(self, orient=VERTICAL)
-        vsl.grid(row=2, column=3, sticky=N + S + W)
+        vsl.grid(row=2, column=4, sticky=N + S + W)
         
         hsl = Scrollbar(self, orient=HORIZONTAL)
-        hsl.grid(row=3, column=0, columnspan=3, sticky=W + E + N)
+        hsl.grid(row=3, column=0, columnspan=4, sticky=W + E + N)
         
         hsl.config(command=self.console.xview)
         vsl.config(command=self.console.yview)
         
         resbtn = Button(self, text="Search", width=7, comman=self._showsearchresult)
-        resbtn.grid(row=4, column=2, padx=5, pady=5, sticky=E)
+        resbtn.grid(row=4, column=3, padx=5, pady=5, sticky=E)
         
     
     def _showsearchresult(self):
@@ -285,7 +352,7 @@ class LogUI(Frame):
         
         selectedfile = askopenfilename(filetypes=filetypes)
         if selectedfile is not None:
-            newmodel = FileModel(selectedfile, searchconds=[], relation="and", joincondtuples=[])
+            newmodel = FileModel(selectedfile, searchconds=[], relation="and", joincondtuples=[], displayfields=csvhandler.getfields(selectedfile))
             self.filemodels.append(newmodel)
             self.filelist.insert(END, newmodel.filename)
             self._setselectedfileindex(len(self.filemodels) - 1)
@@ -338,6 +405,8 @@ class LogUI(Frame):
         
         joincondtuples = selectedfile.joincondtuples
         self._inflatejoincondlist(joincondtuples)
+        
+        self._inflatefieldpanel(selectedfile)
         
     def _addsearchcondition(self):
         if self._getselectedfileindex() < 0:
