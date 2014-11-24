@@ -40,6 +40,7 @@ class LogUI(Frame):
         self._initfilepanel()
         self._initsearchcondpanel()
         self._initjoincondpanel()
+        self._initfieldspanel()
         self._initconsole()
         
         self._inflatefilelist()
@@ -176,16 +177,32 @@ class LogUI(Frame):
             tofilename = condtuple[1]
             self.joincondlist.insert(END, cond.tostring() + " in " + tofilename)
             
+            
+    def _addfieldToDisplay(self):
+        selectedfile = self._getselectedfile()
+        index = self._getselectednodisplayfieldIndex()
+        if index >= 0:
+            selectedfile.displayfields.append(self._getselectednodisplayfield())
+            self._inflatefieldpanel(selectedfile)
+    
+    
+    def _removefieldFromDisplay(self):
+        selectedfile = self._getselectedfile()
+        index = self._getselecteddisplayfieldIndex()
+        if index >= 0:
+            del selectedfile.displayfields[index]
+            self._inflatefieldpanel(selectedfile)
+            
     
     def _initfieldspanel(self):
         frame = Frame(self)
         frame.grid(row=0, column=3, sticky=E + W + S + N)
         
-        label = Label(frame, text="Fields List: ")
+        label = Label(frame, text="Display Fields List: ")
         label.grid(row=0, column=0, sticky=N + W)
         
-        self.fieldlist = Listbox(frame)
-        self.fieldlist.grid(row=1, column=0, rowspan=2)
+        self.displayfieldlist = Listbox(frame)
+        self.displayfieldlist.grid(row=1, column=0, rowspan=2)
         
         vsl = Scrollbar(frame, orient=VERTICAL)
         vsl.grid(row=1, column=1, rowspan=2, sticky=N + S + W)
@@ -193,22 +210,22 @@ class LogUI(Frame):
         hsl = Scrollbar(frame, orient=HORIZONTAL)
         hsl.grid(row=3, column=0, sticky=W + E + N)
         
-        self.fieldlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        self.displayfieldlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
         
-        hsl.config(command=self.filelist.xview)
-        vsl.config(command=self.filelist.yview)
+        hsl.config(command=self.displayfieldlist.xview)
+        vsl.config(command=self.displayfieldlist.yview)
         
-        addbtn = Button(frame, text="Add", width=7, command=self._addfield)
+        addbtn = Button(frame, text="Add", width=7, command=self._addfieldToDisplay)
         addbtn.grid(row=1, column=2, padx=5, pady=5, sticky=S)
         
-        removebtn = Button(frame, text="Remove", width=7, command=self._removefield)
+        removebtn = Button(frame, text="Remove", width=7, command=self._removefieldFromDisplay)
         removebtn.grid(row=2, column=2, padx=5, pady=5, sticky=N)
         
-        label = Label(frame, text="Display Fields List: ")
+        label = Label(frame, text="No Display Fields List: ")
         label.grid(row=0, column=3, sticky=N + W)
         
-        self.displayfieldlist = Listbox(frame)
-        self.displayfieldlist.grid(row=1, column=3, rowspan=2)
+        self.nodisplayfieldlist = Listbox(frame)
+        self.nodisplayfieldlist.grid(row=1, column=3, rowspan=2)
         
         vsl = Scrollbar(frame, orient=VERTICAL)
         vsl.grid(row=1, column=4, rowspan=2, sticky=N + S + W)
@@ -216,32 +233,25 @@ class LogUI(Frame):
         hsl = Scrollbar(frame, orient=HORIZONTAL)
         hsl.grid(row=3, column=3, sticky=W + E + N)
         
-        self.displayfieldlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        self.nodisplayfieldlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
         
-        hsl.config(command=self.filelist.xview)
-        vsl.config(command=self.filelist.yview)
-    
+        hsl.config(command=self.nodisplayfieldlist.xview)
+        vsl.config(command=self.nodisplayfieldlist.yview)
         
-    def __addfield(self):
-        pass
-    
-    
-    def _removefield(self):
-        pass
-    
+        
     def _inflatefieldpanel(self, filemodel):
         filename = filemodel.filename
         fields = csvhandler.getfields(filename)
         displayfields = filemodel.displayfields
         displayfielddict = set(displayfields)
         
-        self.fieldlist.delete(0, END)
+        self.nodisplayfieldlist.delete(0, END)
         self.displayfieldlist.delete(0, END)
         for field in fields:
             if field in displayfielddict:
                 self.displayfieldlist.insert(END, field)
             else:
-                self.fieldlist.insert(END, field)
+                self.nodisplayfieldlist.insert(END, field)
         
     
     def _initconsole(self):
@@ -261,7 +271,7 @@ class LogUI(Frame):
         hsl.config(command=self.console.xview)
         vsl.config(command=self.console.yview)
         
-        resbtn = Button(self, text="Search", width=7, comman=self._showsearchresult)
+        resbtn = Button(self, text="Search", width=7, command=self._showsearchresult)
         resbtn.grid(row=4, column=3, padx=5, pady=5, sticky=E)
         
     
@@ -307,7 +317,8 @@ class LogUI(Frame):
         for filemodel in self.filemodels:
             filename = filemodel.filename
             fileresult = fileresults[filename]
-            formatres += self._formatfileresult(fileresult)
+            displayfields = filemodel.displayfields
+            formatres += self._formatfileresult(fileresult, displayfields)
             formatres += "\r\n"
         return formatres
     
@@ -323,23 +334,22 @@ class LogUI(Frame):
         return res
         
     
-    def _formatfileresult(self, fileresult):
+    def _formatfileresult(self, fileresult, displayfields):
         res = ""
         filename = fileresult.filename
         res += filename + "    Size: " + str(len(fileresult.result)) + "\r\n"
-        fields = csvhandler.getfields(filename)
         
-        for (i, field) in enumerate(fields):
+        for (i, field) in enumerate(displayfields):
             res += field
-            if i < (len(fields) - 1):
+            if i < (len(displayfields) - 1):
                 res += ","
             else:
                 res += "\r\n"
                 
         for rowdict in fileresult.result:
-            for (i, field) in enumerate(fields):
+            for (i, field) in enumerate(displayfields):
                 res += rowdict[field]
-                if i < (len(fields) - 1):
+                if i < (len(displayfields) - 1):
                     res += ","
                 else:
                     res += "\r\n"
@@ -654,7 +664,20 @@ class LogUI(Frame):
             return self.joincondlist.curselection()[0]
         return -1
     
+    def _getselecteddisplayfieldIndex(self):
+        if len(self.displayfieldlist.curselection()) > 0:
+            return self.displayfieldlist.curselection()[0]
+        return -1
     
+    def _getselectednodisplayfieldIndex(self):
+        if len(self.nodisplayfieldlist.curselection()) > 0:
+            return self.nodisplayfieldlist.curselection()[0]
+        return -1
+    
+    def _getselectednodisplayfield(self):
+        if len(self.nodisplayfieldlist.curselection()) > 0:
+            return self.nodisplayfieldlist.get(self.nodisplayfieldlist.curselection()[0])
+        return None
 
 if __name__ == "__main__":
     root = Tk()

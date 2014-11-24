@@ -265,11 +265,6 @@ class Search:
         return searchresult
     
 
-class FieldFilter:
-    
-    def process(self, filename, fields, data):
-        pass
-
 if __name__ == '__main__':
     
 #     filecond = ValueSearchCondition("gender", "male")
