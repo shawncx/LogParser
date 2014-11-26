@@ -12,9 +12,10 @@ from tkinter.filedialog import askopenfilename
 from tkinter.ttk import Combobox, Separator
 import traceback
 
-from handler import csvhandler
-from handler.csvhandler import ValueSearchCondition, RangeSearchCondition, \
-    JoinSearchCondition, SingleFileSearch, JoinFileSearch, Search
+from handler import loghandler
+from handler.loghandler import SingleFileSearch, JoinFileSearch, Search, \
+    EqualSearchCondition, RangeSearchCondition, JoinSearchCondition,\
+    ContainSearchCondition
 from model.filemodel import FileModel
 
 
@@ -24,37 +25,37 @@ class LogUI(Frame):
         Frame.__init__(self, parent)   
         self.parent = parent
         
-        self.filemodels = []
-#         filemodel1 = FileModel("C:/Users/chen_xi/test1.csv", searchconds=[], relation="and", joincondtuples=[])
-#         filemodel2 = FileModel("C:/Users/chen_xi/test2.csv", searchconds=[], relation="and", joincondtuples=[])
-#         self.filemodels = [filemodel1, filemodel2]
+        self.fileModels = []
+#         fileModel1 = FileModel("C:/Users/chen_xi/test1.csv", searchConds=[], relation="and", joinCondTuples=[])
+#         fileModel2 = FileModel("C:/Users/chen_xi/test2.csv", searchConds=[], relation="and", joinCondTuples=[])
+#         self.fileModels = [fileModel1, fileModel2]
         
         self._initUI()
-        self.selectedfileindex = -1
+        self.selectedFileIndex = -1
         
         
     def _initUI(self):
-        self.parent.title("Log Processor")
+        self.parent.title("Log Parser")
         self.pack()
         
-        self._initfilepanel()
-        self._initsearchcondpanel()
-        self._initjoincondpanel()
-        self._initfieldspanel()
-        self._initconsole()
+        self._initFilePanel()
+        self._initSearchCondPanel()
+        self._initJoinCondPanel()
+        self._initFieldsPanel()
+        self._initConsole()
         
-        self._inflatefilelist()
+        self._inflateFileList()
         
         
-    def _initfilepanel(self):
+    def _initFilePanel(self):
         frame = Frame(self)
         frame.grid(row=0, column=0, sticky=E + W + S + N)
         
         label = Label(frame, text="File List: ")
         label.grid(sticky=N + W)
         
-        self.filelist = Listbox(frame, width=40)
-        self.filelist.grid(row=1, column=0, rowspan=2, columnspan=3)
+        self.fileList = Listbox(frame, width=40)
+        self.fileList.grid(row=1, column=0, rowspan=2, columnspan=3)
         
         vsl = Scrollbar(frame, orient=VERTICAL)
         vsl.grid(row=1, column=3, rowspan=2, sticky=N + S + W)
@@ -62,48 +63,48 @@ class LogUI(Frame):
         hsl = Scrollbar(frame, orient=HORIZONTAL)
         hsl.grid(row=3, column=0, columnspan=3, sticky=W + E + N)
         
-        self.filelist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
-        self.filelist.bind('<<ListboxSelect>>', self._onfilelistselection)
+        self.fileList.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        self.fileList.bind('<<ListboxSelect>>', self._onFileListSelection)
         
-        hsl.config(command=self.filelist.xview)
-        vsl.config(command=self.filelist.yview)
+        hsl.config(command=self.fileList.xview)
+        vsl.config(command=self.fileList.yview)
         
-        upbtn = Button(frame, text="Up", width=7, command=self._upfile)
-        upbtn.grid(row=1, column=4, padx=5, pady=5, sticky=S)
+        upBtn = Button(frame, text="Up", width=7, command=self._upFile)
+        upBtn.grid(row=1, column=4, padx=5, pady=5, sticky=S)
         
-        downbtn = Button(frame, text="Down", width=7, command=self._downfile)
-        downbtn.grid(row=2, column=4, padx=5, pady=5, sticky=N)
+        downBtn = Button(frame, text="Down", width=7, command=self._downFile)
+        downBtn.grid(row=2, column=4, padx=5, pady=5, sticky=N)
         
-        newbtn = Button(frame, text="New", width=7, command=self._addfile)
-        newbtn.grid(row=4, column=1, pady=5, sticky=E + S)
+        newBtn = Button(frame, text="New", width=7, command=self._addFile)
+        newBtn.grid(row=4, column=1, pady=5, sticky=E + S)
         
-        delbtn = Button(frame, text="Delete", width=7, command=self._deletefile)
-        delbtn.grid(row=4, column=2, padx=5, pady=5, sticky=W + S)
+        delBtn = Button(frame, text="Delete", width=7, command=self._deleteFile)
+        delBtn.grid(row=4, column=2, padx=5, pady=5, sticky=W + S)
         
             
-    def _inflatefilelist(self):
-        self.filelist.delete(0, END)
-        for filemodel in self.filemodels:
-            self.filelist.insert(END, filemodel.filename)
+    def _inflateFileList(self):
+        self.fileList.delete(0, END)
+        for fileModel in self.fileModels:
+            self.fileList.insert(END, fileModel.fileName)
             
         
-    def _initsearchcondpanel(self):
+    def _initSearchCondPanel(self):
         frame = Frame(self)
         frame.grid(row=0, column=1, sticky=E + W + S + N, padx=5)
         
         label = Label(frame, text="Search Condition: ")
         label.grid(row=0, column=0, columnspan=1, sticky=W)
         
-        relationlable = Label(frame, text="Relation")
-        relationlable.grid(row=0, column=1, columnspan=1, sticky=E)
+        relationLable = Label(frame, text="Relation")
+        relationLable.grid(row=0, column=1, columnspan=1, sticky=E)
         
-        self.condrelationvar = StringVar(frame)
-        relationinput = Combobox(frame, textvariable=self.condrelationvar, values=["and", "or"])
-        relationinput.grid(row=0, column=2, padx=5, sticky=E)
-        relationinput.bind('<<ComboboxSelected>>', self._onrelationchange)
+        self.condRelationVar = StringVar(frame)
+        relationInput = Combobox(frame, textvariable=self.condRelationVar, values=["and", "or"])
+        relationInput.grid(row=0, column=2, padx=5, sticky=E)
+        relationInput.bind('<<ComboboxSelected>>', self._onRelationChange)
         
-        self.searchcondlist = Listbox(frame)
-        self.searchcondlist.grid(row=1, rowspan=1, columnspan=3, sticky=E + W + S + N)
+        self.searchCondList = Listbox(frame)
+        self.searchCondList.grid(row=1, rowspan=1, columnspan=3, sticky=E + W + S + N)
         
         vsl = Scrollbar(frame, orient=VERTICAL)
         vsl.grid(row=1, column=3, rowspan=1, sticky=N + S + W)
@@ -111,43 +112,43 @@ class LogUI(Frame):
         hsl = Scrollbar(frame, orient=HORIZONTAL)
         hsl.grid(row=2, column=0, columnspan=3, sticky=W + E + N)
         
-        self.searchcondlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        self.searchCondList.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
         
-        hsl.config(command=self.searchcondlist.xview)
-        vsl.config(command=self.searchcondlist.yview)
+        hsl.config(command=self.searchCondList.xview)
+        vsl.config(command=self.searchCondList.yview)
         
-        newbtn = Button(frame, text="New", width=7, command=self._addsearchcondition)
-        newbtn.grid(row=3, column=0, padx=5, pady=5, sticky=E)
+        newBtn = Button(frame, text="New", width=7, command=self._addSearchCondition)
+        newBtn.grid(row=3, column=0, padx=5, pady=5, sticky=E)
         
-        delbtn = Button(frame, text="Delete", width=7, command=self._deletesearchcondition)
-        delbtn.grid(row=3, column=1, sticky=E)
+        delBtn = Button(frame, text="Delete", width=7, command=self._deleteSearchCondition)
+        delBtn.grid(row=3, column=1, sticky=E)
         
-        modbtn = Button(frame, text="Update", width=7, command=self._modifysearchcondition)
-        modbtn.grid(row=3, column=2, padx=5, pady=5, sticky=W)
+        modBtn = Button(frame, text="Update", width=7, command=self._modifySearchCondition)
+        modBtn.grid(row=3, column=2, padx=5, pady=5, sticky=W)
         
     
-    def _onrelationchange(self, evt):
-        selectedmodel = self._getselectedfile()
-        selectedmodel.relation = self.condrelationvar.get()
+    def _onRelationChange(self, evt):
+        selectedModel = self._getSelectedFile()
+        selectedModel.relation = self.condRelationVar.get()
     
             
-    def _inflatesearchcondlist(self, filemodel):
-        self.condrelationvar.set(filemodel.relation)
-        conds = filemodel.searchconds
-        self.searchcondlist.delete(0, END)
+    def _inflateSearchCondList(self, fileModel):
+        self.condRelationVar.set(fileModel.relation)
+        conds = fileModel.searchConds
+        self.searchCondList.delete(0, END)
         for cond in conds:
-            self.searchcondlist.insert(END, cond.tostring())
+            self.searchCondList.insert(END, cond.toString())
         
         
-    def _initjoincondpanel(self):
+    def _initJoinCondPanel(self):
         frame = Frame(self)
         frame.grid(row=0, column=2, sticky=E + W + S + N, padx=5)
         
         label = Label(frame, text="Join Condition: ")
         label.grid(sticky=N + W)
         
-        self.joincondlist = Listbox(frame)
-        self.joincondlist.grid(row=1, rowspan=1, columnspan=3, sticky=E + W + S + N)
+        self.joinCondList = Listbox(frame)
+        self.joinCondList.grid(row=1, rowspan=1, columnspan=3, sticky=E + W + S + N)
         
         vsl = Scrollbar(frame, orient=VERTICAL)
         vsl.grid(row=1, column=3, rowspan=1, sticky=N + S + W)
@@ -155,54 +156,54 @@ class LogUI(Frame):
         hsl = Scrollbar(frame, orient=HORIZONTAL)
         hsl.grid(row=2, column=0, columnspan=3, sticky=W + E + N)
         
-        self.joincondlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        self.joinCondList.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
         
-        hsl.config(command=self.joincondlist.xview)
-        vsl.config(command=self.joincondlist.yview)
+        hsl.config(command=self.joinCondList.xview)
+        vsl.config(command=self.joinCondList.yview)
         
-        newbtn = Button(frame, text="New", width=7, command=self._addjoincondition)
-        newbtn.grid(row=3, column=0, padx=5, pady=5, sticky=E)
+        newBtn = Button(frame, text="New", width=7, command=self._addJoinCondition)
+        newBtn.grid(row=3, column=0, padx=5, pady=5, sticky=E)
         
-        delbtn = Button(frame, text="Delete", width=7, command=self._deletejoincondition)
-        delbtn.grid(row=3, column=1, sticky=E)
+        delBtn = Button(frame, text="Delete", width=7, command=self._deleteJoinCondition)
+        delBtn.grid(row=3, column=1, sticky=E)
         
-        modbtn = Button(frame, text="Update", width=7, command=self._modifyjoincondition)
-        modbtn.grid(row=3, column=2, padx=5, pady=5, sticky=W)
+        modBtn = Button(frame, text="Update", width=7, command=self._modifyJoinCondition)
+        modBtn.grid(row=3, column=2, padx=5, pady=5, sticky=W)
         
     
-    def _inflatejoincondlist(self, condtuples):
-        self.joincondlist.delete(0, END)
-        for condtuple in condtuples:
-            cond = condtuple[0]
-            tofilename = condtuple[1]
-            self.joincondlist.insert(END, cond.tostring() + " in " + tofilename)
+    def _inflateJoinCondList(self, condTuples):
+        self.joinCondList.delete(0, END)
+        for condTuple in condTuples:
+            cond = condTuple[0]
+            toFileName = condTuple[1]
+            self.joinCondList.insert(END, cond.toString() + " in " + toFileName)
             
             
-    def _addfieldToDisplay(self):
-        selectedfile = self._getselectedfile()
-        index = self._getselectednodisplayfieldIndex()
+    def _addFieldToDisplay(self):
+        selectedFile = self._getSelectedFile()
+        index = self._getSelectedNoDisplayFieldIndex()
         if index >= 0:
-            selectedfile.displayfields.append(self._getselectednodisplayfield())
-            self._inflatefieldpanel(selectedfile)
+            selectedFile.displayFields.append(self._getSelectedNoDisplayField())
+            self._inflateFieldPanel(selectedFile)
     
     
-    def _removefieldFromDisplay(self):
-        selectedfile = self._getselectedfile()
-        index = self._getselecteddisplayfieldIndex()
+    def _removeFieldFromDisplay(self):
+        selectedFile = self._getSelectedFile()
+        index = self._getSelectedDisplayFieldIndex()
         if index >= 0:
-            del selectedfile.displayfields[index]
-            self._inflatefieldpanel(selectedfile)
+            del selectedFile.displayFields[index]
+            self._inflateFieldPanel(selectedFile)
             
     
-    def _initfieldspanel(self):
+    def _initFieldsPanel(self):
         frame = Frame(self)
         frame.grid(row=0, column=3, sticky=E + W + S + N)
         
         label = Label(frame, text="Display Fields List: ")
         label.grid(row=0, column=0, sticky=N + W)
         
-        self.displayfieldlist = Listbox(frame)
-        self.displayfieldlist.grid(row=1, column=0, rowspan=2)
+        self.displayFieldList = Listbox(frame)
+        self.displayFieldList.grid(row=1, column=0, rowspan=2)
         
         vsl = Scrollbar(frame, orient=VERTICAL)
         vsl.grid(row=1, column=1, rowspan=2, sticky=N + S + W)
@@ -210,22 +211,22 @@ class LogUI(Frame):
         hsl = Scrollbar(frame, orient=HORIZONTAL)
         hsl.grid(row=3, column=0, sticky=W + E + N)
         
-        self.displayfieldlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        self.displayFieldList.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
         
-        hsl.config(command=self.displayfieldlist.xview)
-        vsl.config(command=self.displayfieldlist.yview)
+        hsl.config(command=self.displayFieldList.xview)
+        vsl.config(command=self.displayFieldList.yview)
         
-        addbtn = Button(frame, text="Add", width=7, command=self._addfieldToDisplay)
-        addbtn.grid(row=1, column=2, padx=5, pady=5, sticky=S)
+        addBtn = Button(frame, text="Add", width=7, command=self._addFieldToDisplay)
+        addBtn.grid(row=1, column=2, padx=5, pady=5, sticky=S)
         
-        removebtn = Button(frame, text="Remove", width=7, command=self._removefieldFromDisplay)
-        removebtn.grid(row=2, column=2, padx=5, pady=5, sticky=N)
+        removeBtn = Button(frame, text="Remove", width=7, command=self._removeFieldFromDisplay)
+        removeBtn.grid(row=2, column=2, padx=5, pady=5, sticky=N)
         
         label = Label(frame, text="No Display Fields List: ")
         label.grid(row=0, column=3, sticky=N + W)
         
-        self.nodisplayfieldlist = Listbox(frame)
-        self.nodisplayfieldlist.grid(row=1, column=3, rowspan=2)
+        self.noDisplayFieldList = Listbox(frame)
+        self.noDisplayFieldList.grid(row=1, column=3, rowspan=2)
         
         vsl = Scrollbar(frame, orient=VERTICAL)
         vsl.grid(row=1, column=4, rowspan=2, sticky=N + S + W)
@@ -233,28 +234,28 @@ class LogUI(Frame):
         hsl = Scrollbar(frame, orient=HORIZONTAL)
         hsl.grid(row=3, column=3, sticky=W + E + N)
         
-        self.nodisplayfieldlist.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
+        self.noDisplayFieldList.config(yscrollcommand=vsl.set, xscrollcommand=hsl.set)
         
-        hsl.config(command=self.nodisplayfieldlist.xview)
-        vsl.config(command=self.nodisplayfieldlist.yview)
+        hsl.config(command=self.noDisplayFieldList.xview)
+        vsl.config(command=self.noDisplayFieldList.yview)
         
         
-    def _inflatefieldpanel(self, filemodel):
-        filename = filemodel.filename
-        fields = csvhandler.getfields(filename)
-        displayfields = filemodel.displayfields
-        displayfielddict = set(displayfields)
+    def _inflateFieldPanel(self, fileModel):
+        fileName = fileModel.fileName
+        fields = loghandler.getFields(fileName)
+        displayFields = fileModel.displayFields
+        displayFieldDict = set(displayFields)
         
-        self.nodisplayfieldlist.delete(0, END)
-        self.displayfieldlist.delete(0, END)
+        self.noDisplayFieldList.delete(0, END)
+        self.displayFieldList.delete(0, END)
         for field in fields:
-            if field in displayfielddict:
-                self.displayfieldlist.insert(END, field)
+            if field in displayFieldDict:
+                self.displayFieldList.insert(END, field)
             else:
-                self.nodisplayfieldlist.insert(END, field)
+                self.noDisplayFieldList.insert(END, field)
         
     
-    def _initconsole(self):
+    def _initConsole(self):
         
         separator = Separator(self, orient=HORIZONTAL)
         separator.grid(row=1, columnspan=4, sticky=W + E, padx=5, pady=5)
@@ -271,85 +272,85 @@ class LogUI(Frame):
         hsl.config(command=self.console.xview)
         vsl.config(command=self.console.yview)
         
-        resbtn = Button(self, text="Search", width=7, command=self._showsearchresult)
-        resbtn.grid(row=4, column=3, padx=5, pady=5, sticky=E)
+        resBtn = Button(self, text="Search", width=7, command=self._showSearchResult)
+        resBtn.grid(row=4, column=3, padx=5, pady=5, sticky=E)
         
     
-    def _showsearchresult(self):
+    def _showSearchResult(self):
         try:
-            res = self._searchresult()
-            formatres = self._formatsearchresult(res)
+            res = self._searchResult()
+            formatRes = self._formatSearchResult(res)
         except Exception:
-            formatres = "Error!\r\n" + traceback.format_exc()
+            formatRes = "Error!\r\n" + traceback.format_exc()
         
         self.console.delete("0.0", END)
-        self.console.insert("0.0", formatres)
+        self.console.insert("0.0", formatRes)
     
     
-    def _searchresult(self):
-        filesearchs = []
-        joinsearchs = []
-        for filemodel in self.filemodels:
-            filename = filemodel.filename
+    def _searchResult(self):
+        fileSearchs = []
+        joinSearchs = []
+        for fileModel in self.fileModels:
+            fileName = fileModel.fileName
             
-            singlesearch = SingleFileSearch(filename, DictReader(open(filename)), filemodel.searchconds, filemodel.relation)
-            filesearchs.append(singlesearch)
+            singleSearch = SingleFileSearch(fileName, DictReader(open(fileName)), fileModel.searchConds, fileModel.relation)
+            fileSearchs.append(singleSearch)
             
-            joindict = {}
-            for joincondtuple in filemodel.joincondtuples:
-                tofilename = joincondtuple[1]
-                joincond = joincondtuple[0]
-                if tofilename not in joindict:
-                    joindict[tofilename] = []
-                joindict[tofilename].append(joincond)
+            joinDict = {}
+            for joinCondTuple in fileModel.joinCondTuples:
+                toFileName = joinCondTuple[1]
+                joinCond = joinCondTuple[0]
+                if toFileName not in joinDict:
+                    joinDict[toFileName] = []
+                joinDict[toFileName].append(joinCond)
             
-            for tofilename in joindict:
-                joinsearch = JoinFileSearch(filename, DictReader(open(filename)), tofilename, DictReader(open(tofilename)), joindict[tofilename])
-                joinsearchs.append(joinsearch)
+            for toFileName in joinDict:
+                joinSearch = JoinFileSearch(fileName, DictReader(open(fileName)), toFileName, DictReader(open(toFileName)), joinDict[toFileName])
+                joinSearchs.append(joinSearch)
                 
-        search = Search(filesearchs, joinsearchs)
+        search = Search(fileSearchs, joinSearchs)
         return search.process()
     
     
-    def _formatsearchresult(self, searchresult):
-        formatres = self._formatsummary(searchresult) + "\r\n"
-        fileresults = searchresult.results
-        for filemodel in self.filemodels:
-            filename = filemodel.filename
-            fileresult = fileresults[filename]
-            displayfields = filemodel.displayfields
-            formatres += self._formatfileresult(fileresult, displayfields)
-            formatres += "\r\n"
-        return formatres
+    def _formatSearchResult(self, searchResult):
+        formatRes = self._formatSummary(searchResult) + "\r\n"
+        fileResults = searchResult.results
+        for fileModel in self.fileModels:
+            fileName = fileModel.fileName
+            fileResult = fileResults[fileName]
+            displayFields = fileModel.displayFields
+            formatRes += self._formatFileResult(fileResult, displayFields)
+            formatRes += "\r\n"
+        return formatRes
     
     
-    def _formatsummary(self, searchresult):
+    def _formatSummary(self, searchResult):
         res = "Summary\r\n"
-        res += "Time Cost: " + str(searchresult.timecost) + " Seconds\r\n"
-        fileresults = searchresult.results
-        for filemodel in self.filemodels:
-            filename = filemodel.filename
-            fileresult = fileresults[filename]
-            res += filename + "    Size: " + str(len(fileresult.result)) + "\r\n"
+        res += "Time Cost: " + str(searchResult.timeCost) + " Seconds\r\n"
+        fileResults = searchResult.results
+        for fileModel in self.fileModels:
+            fileName = fileModel.fileName
+            fileResult = fileResults[fileName]
+            res += fileName + "    Size: " + str(len(fileResult.result)) + "\r\n"
         return res
         
     
-    def _formatfileresult(self, fileresult, displayfields):
+    def _formatFileResult(self, fileResult, displayFields):
         res = ""
-        filename = fileresult.filename
-        res += filename + "    Size: " + str(len(fileresult.result)) + "\r\n"
+        fileName = fileResult.fileName
+        res += fileName + "    Size: " + str(len(fileResult.result)) + "\r\n"
         
-        for (i, field) in enumerate(displayfields):
+        for (i, field) in enumerate(displayFields):
             res += field
-            if i < (len(displayfields) - 1):
+            if i < (len(displayFields) - 1):
                 res += ","
             else:
                 res += "\r\n"
                 
-        for rowdict in fileresult.result:
-            for (i, field) in enumerate(displayfields):
+        for rowdict in fileResult.result:
+            for (i, field) in enumerate(displayFields):
                 res += rowdict[field]
-                if i < (len(displayfields) - 1):
+                if i < (len(displayFields) - 1):
                     res += ","
                 else:
                     res += "\r\n"
@@ -357,326 +358,342 @@ class LogUI(Frame):
                 
              
         
-    def _addfile(self):
-        filetypes = [('csv files', '*.csv'), ('All files', '*')]
+    def _addFile(self):
+        fileTypes = [('csv files', '*.csv'), ('All files', '*')]
         
-        selectedfile = askopenfilename(filetypes=filetypes)
-        if selectedfile is not None:
-            newmodel = FileModel(selectedfile, searchconds=[], relation="and", joincondtuples=[], displayfields=csvhandler.getfields(selectedfile))
-            self.filemodels.append(newmodel)
-            self.filelist.insert(END, newmodel.filename)
-            self._setselectedfileindex(len(self.filemodels) - 1)
+        selectedFile = askopenfilename(filetypes=fileTypes)
+        if selectedFile is not None:
+            newModel = FileModel(selectedFile, searchConds=[], relation="and", joinCondTuples=[], displayFields=loghandler.getFields(selectedFile))
+            self.fileModels.append(newModel)
+            self.fileList.insert(END, newModel.fileName)
+            self._setSelectedFileIndex(len(self.fileModels) - 1)
         
         
-    def _deletefile(self):
-        index = self._getselectedfileindex()
+    def _deleteFile(self):
+        index = self._getSelectedFileIndex()
         if index >= 0:
-            self.filelist.delete(index)
-            del self.filemodels[index]
-            self._setselectedfileindex(-1)
+            self.fileList.delete(index)
+            del self.fileModels[index]
+            self._setSelectedFileIndex(-1)
         
         
-    def _upfile(self):
-        if self._getselectedfileindex() <= 0:
+    def _upFile(self):
+        if self._getSelectedFileIndex() <= 0:
             return
-        index = self._getselectedfileindex()
-        selectedfilename = self._getselectedfile().filename
+        index = self._getSelectedFileIndex()
+        selectedFileName = self._getSelectedFile().fileName
         
         if index > 0:
-            self.filelist.insert((index - 1), selectedfilename)
-            self.filelist.delete(index + 1)
+            self.fileList.insert((index - 1), selectedFileName)
+            self.fileList.delete(index + 1)
             
-            self.filemodels[index - 1], self.filemodels[index] = self.filemodels[index], self.filemodels[index - 1]
-            self._setselectedfileindex(index - 1)
+            self.fileModels[index - 1], self.fileModels[index] = self.fileModels[index], self.fileModels[index - 1]
+            self._setSelectedFileIndex(index - 1)
             
             
-    def _downfile(self):
-        if self._getselectedfileindex() < 0:
+    def _downFile(self):
+        if self._getSelectedFileIndex() < 0:
             return
-        index = self._getselectedfileindex()
-        selectedfilename = self._getselectedfile().filename
+        index = self._getSelectedFileIndex()
+        selectedFileName = self._getSelectedFile().fileName
         
-        if index < (len(self.filemodels) - 1):
-            self.filelist.insert((index + 2), selectedfilename)
-            self.filelist.delete(index)
+        if index < (len(self.fileModels) - 1):
+            self.fileList.insert((index + 2), selectedFileName)
+            self.fileList.delete(index)
             
-            self.filemodels[index], self.filemodels[index + 1] = self.filemodels[index + 1], self.filemodels[index]
-            self._setselectedfileindex(index + 1)
+            self.fileModels[index], self.fileModels[index + 1] = self.fileModels[index + 1], self.fileModels[index]
+            self._setSelectedFileIndex(index + 1)
          
          
-    def _onfilelistselection(self, evt):
-        if len(self.filelist.curselection()) == 0:
+    def _onFileListSelection(self, evt):
+        if len(self.fileList.curselection()) == 0:
             return
         
-        self._setselectedfileindex(self.filelist.curselection()[0])
-        selectedfile = self._getselectedfile()
+        self._setSelectedFileIndex(self.fileList.curselection()[0])
+        selectedFile = self._getSelectedFile()
         
-        self._inflatesearchcondlist(selectedfile)
+        self._inflateSearchCondList(selectedFile)
         
-        joincondtuples = selectedfile.joincondtuples
-        self._inflatejoincondlist(joincondtuples)
+        joinCondTuples = selectedFile.joinCondTuples
+        self._inflateJoinCondList(joinCondTuples)
         
-        self._inflatefieldpanel(selectedfile)
+        self._inflateFieldPanel(selectedFile)
         
-    def _addsearchcondition(self):
-        if self._getselectedfileindex() < 0:
+    def _addSearchCondition(self):
+        if self._getSelectedFileIndex() < 0:
             return
         
-        self._popupsearchcondwindow()
+        self._popupSearchCondWindow()
         
     
-    def _deletesearchcondition(self):
-        index = self._getselectedsearchcondindex()
+    def _deleteSearchCondition(self):
+        index = self._getSelectedSearchCondIndex()
         if index < 0:
             return
         
-        selectedfile = self._getselectedfile()
-        del selectedfile.searchconds[index]
-        self.searchcondlist.delete(index)
+        selectedFile = self._getSelectedFile()
+        del selectedFile.searchConds[index]
+        self.searchCondList.delete(index)
     
     
-    def _modifysearchcondition(self):
-        if self._getselectedsearchcondindex() < 0:
+    def _modifySearchCondition(self):
+        if self._getSelectedSearchCondIndex() < 0:
             return
         
-        self._popupsearchcondwindow(self._getselectedsearchcondindex())
+        self._popupSearchCondWindow(self._getSelectedSearchCondIndex())
         
     
-    def _addjoincondition(self):
-        if self._getselectedfileindex() < 0:
+    def _addJoinCondition(self):
+        if self._getSelectedFileIndex() < 0:
             return
         
-        self._popupjoincondwindow()
+        self._popupJoinCondWindow()
         
     
-    def _deletejoincondition(self):
-        index = self._getselectedjoincondindex()
+    def _deleteJoinCondition(self):
+        index = self._getSelectedJoinCondIndex()
         if index < 0:
             return
         
-        selectedfile = self._getselectedfile()
-        del selectedfile.joincondtuples[index]
-        self.joincondlist.delete(index)
+        selectedFile = self._getSelectedFile()
+        del selectedFile.joinCondTuples[index]
+        self.joinCondList.delete(index)
     
     
-    def _modifyjoincondition(self):
-        if self._getselectedjoincondindex() < 0:
+    def _modifyJoinCondition(self):
+        if self._getSelectedJoinCondIndex() < 0:
             return
         
-        self._popupjoincondwindow(self._getselectedjoincondindex())
+        self._popupJoinCondWindow(self._getSelectedJoinCondIndex())
          
          
-    def _popupsearchcondwindow(self, index=-1):
+    def _popupSearchCondWindow(self, index=-1):
         if index < 0:
-            cond = ValueSearchCondition("", "")
+            cond = EqualSearchCondition("", "")
         else:
-            cond = self._getselectedfile().searchconds[index]
+            cond = self._getSelectedFile().searchConds[index]
         
         window = Toplevel(self)
         
         title = Label(window, text="New Search Condition")
         title.grid(row=0, column=0, padx=5, pady=5, sticky=W + N)
         
-        fieldlabel = Label(window, text="Field Name: ")
-        fieldlabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
+        fieldLabel = Label(window, text="Field Name: ")
+        fieldLabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
         
-        fields = csvhandler.getfields(self._getselectedfile().filename)
-        fieldvar = StringVar(window)
-        fieldinput = Combobox(window, textvariable=fieldvar, values=fields, width=20)
-        fieldinput.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+        fields = loghandler.getFields(self._getSelectedFile().fileName)
+        fieldVar = StringVar(window)
+        fieldInput = Combobox(window, textvariable=fieldVar, values=fields, width=20)
+        fieldInput.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        valuelabel = Label(window, text="Value: ")
-        valuelabel.grid(row=3, column=0, padx=5, pady=5, sticky=W)
+        valueLabel = Label(window, text="Value: ")
+        valueLabel.grid(row=5, column=0, padx=5, pady=5, sticky=W)
         
-        valueinput = Entry(window)
-        valueinput.grid(row=3, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+        valueInput = Entry(window)
+        valueInput.grid(row=5, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        minlabel = Label(window, text="Min Value: ")
-        minlabel.grid(row=4, column=0, padx=5, pady=5, sticky=W)
+        minLabel = Label(window, text="Min Value: ")
+        minLabel.grid(row=6, column=0, padx=5, pady=5, sticky=W)
         
-        mininput = Entry(window)
-        mininput.grid(row=4, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+        minInput = Entry(window)
+        minInput.grid(row=6, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        maxlabel = Label(window, text="Max Value: ")
-        maxlabel.grid(row=5, column=0, padx=5, pady=5, sticky=W)
+        maxLabel = Label(window, text="Max Value: ")
+        maxLabel.grid(row=7, column=0, padx=5, pady=5, sticky=W)
         
-        maxinput = Entry(window)
-        maxinput.grid(row=5, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+        maxInput = Entry(window)
+        maxInput.grid(row=7, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        sarchkind = IntVar()
+        sarchKind = IntVar()
         
-        def _enablesingle():
-            valueinput.config(state=NORMAL)
-            mininput.config(state=DISABLED)
-            maxinput.config(state=DISABLED)
-            singlebutton.select()
+        def _enableEqual():
+            valueInput.config(state=NORMAL)
+            minInput.config(state=DISABLED)
+            maxInput.config(state=DISABLED)
+            equalBtn.select()
+        
+        def _enableContain():
+            valueInput.config(state=NORMAL)
+            minInput.config(state=DISABLED)
+            maxInput.config(state=DISABLED)
+            containBtn.select()
             
-        def _enablejoin():
-            valueinput.config(state=DISABLED)
-            mininput.config(state=NORMAL)
-            maxinput.config(state=NORMAL)
-            joinbutton.select()
+        def _enableRange():
+            valueInput.config(state=DISABLED)
+            minInput.config(state=NORMAL)
+            maxInput.config(state=NORMAL)
+            rangeBtn.select()
             
-        typelabel = Label(window, text="Search Type: ")
-        typelabel.grid(row=2, column=0, padx=5, pady=5, sticky=W)
+        typeLabel = Label(window, text="Search Type: ")
+        typeLabel.grid(row=2, column=0, padx=5, pady=5, sticky=W)
         
-        singlebutton = Radiobutton(window, text="Single", variable=sarchkind, value=1, command=_enablesingle)
-        singlebutton.grid(row=2, column=1, columnspan=1, padx=5, pady=5, sticky=W)
+        equalBtn = Radiobutton(window, text="Equal", variable=sarchKind, value=1, command=_enableEqual)
+        equalBtn.grid(row=2, column=1, columnspan=1, padx=5, pady=5, sticky=W)
         
-        joinbutton = Radiobutton(window, text="Range", variable=sarchkind, value=2, command=_enablejoin)
-        joinbutton.grid(row=2, column=2, columnspan=1, padx=5, pady=5, sticky=W)
+        containBtn = Radiobutton(window, text="Contain", variable=sarchKind, value=2, command=_enableContain)
+        containBtn.grid(row=3, column=1, columnspan=1, padx=5, pady=5, sticky=W)
+        
+        rangeBtn = Radiobutton(window, text="Range", variable=sarchKind, value=3, command=_enableRange)
+        rangeBtn.grid(row=4, column=1, columnspan=1, padx=5, pady=5, sticky=W)
         
         # init value
-        fieldvar.set(cond.field)
-        if isinstance(cond, ValueSearchCondition):
-            valueinput.insert(0, cond.val)
-            _enablesingle()
+        fieldVar.set(cond.field)
+        if isinstance(cond, EqualSearchCondition):
+            valueInput.insert(0, cond.val)
+            _enableEqual()
+        elif isinstance(cond, ContainSearchCondition):
+            valueInput.insert(0, cond.val)
+            _enableContain()
         elif isinstance(cond, RangeSearchCondition):
-            mininput.insert(0, cond.valmin)
-            maxinput.insert(0, cond.valmax)
-            _enablejoin()
+            minInput.insert(0, cond.valMin)
+            maxInput.insert(0, cond.valMax)
+            _enableRange()
             
-        def _newcond():
-            '''create new condition
+        def _newCond():
             '''
-            if sarchkind.get() == 1:
-                cond = ValueSearchCondition(fieldvar.get(), valueinput.get())
-            else:
-                cond = RangeSearchCondition(fieldvar.get(), mininput.get(), maxinput.get())
-            selectedfile = self._getselectedfile()
+            create new condition
+            '''
+            if sarchKind.get() == 1:
+                cond = EqualSearchCondition(fieldVar.get(), valueInput.get())
+            elif sarchKind.get() == 2:
+                cond = ContainSearchCondition(fieldVar.get(), valueInput.get())
+            elif sarchKind.get() == 3:
+                cond = RangeSearchCondition(fieldVar.get(), minInput.get(), maxInput.get())
+                
+            selectedFile = self._getSelectedFile()
+            
             if index < 0:
-                selectedfile.searchconds.append(cond)
-                
+                selectedFile.searchConds.append(cond)
             else:
-                del selectedfile.searchconds[index]
-                selectedfile.searchconds[index:index] = [cond]
+                del selectedFile.searchConds[index]
+                selectedFile.searchConds[index:index] = [cond]
                 
-            self._inflatesearchcondlist(selectedfile)
+            self._inflateSearchCondList(selectedFile)
             
             window.destroy()
         
-        okbtn = Button(window, text="Confirm", width=7, command=_newcond)
-        okbtn.grid(row=6, column=1, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
+        okBtn = Button(window, text="Confirm", width=7, command=_newCond)
+        okBtn.grid(row=8, column=1, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
         
-        clsbtn = Button(window, text="Close", width=7, command=lambda: window.destroy())
-        clsbtn.grid(row=6, column=2, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
+        clsBtn = Button(window, text="Close", width=7, command=lambda: window.destroy())
+        clsBtn.grid(row=8, column=2, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
         
         
-    def _popupjoincondwindow(self, index=-1):
+    def _popupJoinCondWindow(self, index=-1):
         if index < 0:
-            cond = JoinSearchCondition(("", ""))
-            tofilename = ""
+            cond = JoinSearchCondition("", "")
+            toFileName = ""
         else:
-            condtuple = self._getselectedfile().joincondtuples[index]
-            cond = condtuple[0]
-            tofilename = condtuple[1]
+            condTuple = self._getSelectedFile().joinCondTuples[index]
+            cond = condTuple[0]
+            toFileName = condTuple[1]
             
         window = Toplevel(self)
         
         title = Label(window, text="New Search Condition")
         title.grid(row=0, column=0, padx=5, pady=5, sticky=W + N)
         
-        filenamelabel = Label(window, text="Target Field Name: ")
-        filenamelabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
+        fileNamelabel = Label(window, text="Target Field Name: ")
+        fileNamelabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
         
-        filevar = StringVar(window)
-        filenameinput = Combobox(window, textvariable=filevar, values=self.filelist.get(0, END), width=30)
-        filenameinput.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+        fileVar = StringVar(window)
+        fileNameinput = Combobox(window, textvariable=fileVar, values=self.fileList.get(0, END), width=30)
+        fileNameinput.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        fromfieldlabel = Label(window, text="Field in From File: ")
-        fromfieldlabel.grid(row=3, column=0, padx=5, pady=5, sticky=W)
+        fromfieldLabel = Label(window, text="Field in From File: ")
+        fromfieldLabel.grid(row=3, column=0, padx=5, pady=5, sticky=W)
         
-        fromfields = csvhandler.getfields(self._getselectedfile().filename)
-        fromfieldvar = StringVar(window)
-        fieldinput = Combobox(window, textvariable=fromfieldvar, values=fromfields, width=20)
-        fieldinput.grid(row=3, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+        fromFields = loghandler.getFields(self._getSelectedFile().fileName)
+        fromFieldVar = StringVar(window)
+        fieldInput = Combobox(window, textvariable=fromFieldVar, values=fromFields, width=20)
+        fieldInput.grid(row=3, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        tofieldlabel = Label(window, text="Field in Target File: ")
-        tofieldlabel.grid(row=4, column=0, padx=5, pady=5, sticky=W)
+        toFieldLabel = Label(window, text="Field in Target File: ")
+        toFieldLabel.grid(row=4, column=0, padx=5, pady=5, sticky=W)
         
-        tofields = []
-        tofieldvar = StringVar(window)
-        tofieldinput = Combobox(window, textvariable=tofieldvar, values=tofields, width=20)
-        tofieldinput.grid(row=4, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+        toFields = []
+        toFieldVar = StringVar(window)
+        toFieldInput = Combobox(window, textvariable=toFieldVar, values=toFields, width=20)
+        toFieldInput.grid(row=4, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        def updatetofieldinput(evt):
-            if filevar.get() is not None and len(filevar.get()) > 0:
-                tofields = csvhandler.getfields(filevar.get())
+        def updateToFieldInput(evt):
+            if fileVar.get() is not None and len(fileVar.get()) > 0:
+                toFields = loghandler.getFields(fileVar.get())
                 window.grid_slaves(4, 1)[0].grid_forget()
-                tofieldinput = Combobox(window, textvariable=tofieldvar, values=tofields, width=20)
-                tofieldinput.grid(row=4, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+                toFieldInput = Combobox(window, textvariable=toFieldVar, values=toFields, width=20)
+                toFieldInput.grid(row=4, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        filenameinput.bind('<<ComboboxSelected>>', updatetofieldinput)
+        fileNameinput.bind('<<ComboboxSelected>>', updateToFieldInput)
         
         # init value
-        filevar.set(tofilename)
-        fromfieldvar.set(cond.fieldtuple[0])
-        updatetofieldinput(None)
-        tofieldvar.set(cond.fieldtuple[1])
+        fileVar.set(toFileName)
+        fromFieldVar.set(cond.fromField)
+        updateToFieldInput(None)
+        toFieldVar.set(cond.toField)
         
-        def _newcond():
+        def _newCond():
             '''create new condition
             '''
-            cond = JoinSearchCondition((fromfieldvar.get(), tofieldvar.get()))
-            tofilename = filevar.get()
+            cond = JoinSearchCondition(fromFieldVar.get(), toFieldVar.get())
+            toFileName = fileVar.get()
             
-            selectedfile = self._getselectedfile()
+            selectedFile = self._getSelectedFile()
             if index < 0:
-                selectedfile.joincondtuples.append((cond, tofilename))
+                selectedFile.joinCondTuples.append((cond, toFileName))
                 
             else:
-                del selectedfile.joincondtuples[index]
-                selectedfile.joincondtuples[index:index] = [(cond, tofilename)]
+                del selectedFile.joinCondTuples[index]
+                selectedFile.joinCondTuples[index:index] = [(cond, toFileName)]
                 
-            self._inflatejoincondlist(selectedfile.joincondtuples)
+            self._inflateJoinCondList(selectedFile.joinCondTuples)
             
             window.destroy()
         
-        okbtn = Button(window, text="Confirm", width=7, command=_newcond)
-        okbtn.grid(row=6, column=1, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
+        okBtn = Button(window, text="Confirm", width=7, command=_newCond)
+        okBtn.grid(row=6, column=1, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
         
-        clsbtn = Button(window, text="Close", width=7, command=lambda: window.destroy())
-        clsbtn.grid(row=6, column=2, rowspan=1, columnspan=1, sticky=W, padx=5, pady=5)
+        clsBtn = Button(window, text="Close", width=7, command=lambda: window.destroy())
+        clsBtn.grid(row=6, column=2, rowspan=1, columnspan=1, sticky=W, padx=5, pady=5)
         
         
-    def _getselectedfile(self):
-        if self._getselectedfileindex() < 0:
+    def _getSelectedFile(self):
+        if self._getSelectedFileIndex() < 0:
             return None
-        return self.filemodels[self._getselectedfileindex()]
+        return self.fileModels[self._getSelectedFileIndex()]
     
     
-    def _getselectedfileindex(self):
-        return self.selectedfileindex
+    def _getSelectedFileIndex(self):
+        return self.selectedFileIndex
     
     
-    def _setselectedfileindex(self, index):
-        self.selectedfileindex = index
+    def _setSelectedFileIndex(self, index):
+        self.selectedFileIndex = index
         if index >= 0:
-            self.filelist.selection_set(index)
+            self.fileList.selection_set(index)
             
-    def _getselectedsearchcondindex(self):
-        if len(self.searchcondlist.curselection()) > 0:
-            return self.searchcondlist.curselection()[0]
+    def _getSelectedSearchCondIndex(self):
+        if len(self.searchCondList.curselection()) > 0:
+            return self.searchCondList.curselection()[0]
         return -1
     
-    def _getselectedjoincondindex(self):
-        if len(self.joincondlist.curselection()) > 0:
-            return self.joincondlist.curselection()[0]
+    def _getSelectedJoinCondIndex(self):
+        if len(self.joinCondList.curselection()) > 0:
+            return self.joinCondList.curselection()[0]
         return -1
     
-    def _getselecteddisplayfieldIndex(self):
-        if len(self.displayfieldlist.curselection()) > 0:
-            return self.displayfieldlist.curselection()[0]
+    def _getSelectedDisplayFieldIndex(self):
+        if len(self.displayFieldList.curselection()) > 0:
+            return self.displayFieldList.curselection()[0]
         return -1
     
-    def _getselectednodisplayfieldIndex(self):
-        if len(self.nodisplayfieldlist.curselection()) > 0:
-            return self.nodisplayfieldlist.curselection()[0]
+    def _getSelectedNoDisplayFieldIndex(self):
+        if len(self.noDisplayFieldList.curselection()) > 0:
+            return self.noDisplayFieldList.curselection()[0]
         return -1
     
-    def _getselectednodisplayfield(self):
-        if len(self.nodisplayfieldlist.curselection()) > 0:
-            return self.nodisplayfieldlist.get(self.nodisplayfieldlist.curselection()[0])
+    def _getSelectedNoDisplayField(self):
+        if len(self.noDisplayFieldList.curselection()) > 0:
+            return self.noDisplayFieldList.get(self.noDisplayFieldList.curselection()[0])
         return None
 
 if __name__ == "__main__":

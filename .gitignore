@@ -11,3 +11,5 @@ cim.eml
 cim.iml
 *.pydevproject
 *.csv
+*.pyc
+*/__pychache__

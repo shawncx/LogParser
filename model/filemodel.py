@@ -5,9 +5,9 @@
 
 class FileModel:
     
-    def __init__(self, filename, searchconds, relation, joincondtuples, displayfields):
-        self.filename = filename
-        self.searchconds = searchconds
+    def __init__(self, fileName, searchConds, relation, joinCondTuples, displayFields):
+        self.fileName = fileName
+        self.searchConds = searchConds
         self.relation = relation
-        self.joincondtuples = joincondtuples
-        self.displayfields = displayfields
+        self.joinCondTuples = joinCondTuples
+        self.displayFields = displayFields
