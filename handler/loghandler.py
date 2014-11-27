@@ -3,24 +3,227 @@ Created on 2014/11/25
 
 @author: chen_xi
 '''
-'''
-Condition for Search
-'''
 
+
+from csv import DictReader
 import csv
+import re
 import time
 
 
-def getFields(filename):
-    file = open(filename)
-    reader = csv.reader(file)
-    fields = []
-    for row in reader:
-        fields = row
-        break;
-    file.close()
-    return fields;
+class Reader:
+    
+    def getFields(self):
+        raise TypeError("You should use its sub class")
+    
+    def next(self):
+        raise TypeError("You should use its sub class")
+    
+    def __iter__(self):
+        return self
 
+
+class Log4JReader(Reader):
+    
+    LINE_NUMBER = "line number"
+    
+    _TIME_FORMAT = "%Y-%m-%d %H:%M:%S,%f"
+
+    _STYLE = "%"
+    _TIME = "d"
+    _CLASS = "c"
+    _THREAD = "t"
+    _PRIORITY = "p"
+    _MESSAGE = "m"
+    _NEW_LINE = "n"
+    
+    _TIME_PATTERN = re.compile("\S*" + _STYLE + "\S*" + _TIME + "\S*")
+    _CLASS_PATTERN = re.compile("\S*" + _STYLE + "\S*" + _CLASS + "\S*")
+    _THREAD_PATTERN = re.compile("\S*" + _STYLE + "\S*" + _THREAD + "\S*")
+    _PRIORITY_PATTERN = re.compile("\S*" + _STYLE + "\S*" + _PRIORITY + "\S*")
+    _MESSAGE_PATTERN = re.compile("\S*" + _STYLE + "\S*" + _MESSAGE + "\S*")
+    _NEW_LINE_PATTERN = re.compile("\S*" + _STYLE + "\S*" + _NEW_LINE + "\S*")
+    
+    _FIELD_PATTERN_DICT = {_TIME: _TIME_PATTERN, 
+                       _CLASS: _CLASS_PATTERN, 
+                       _THREAD: _THREAD_PATTERN, 
+                       _PRIORITY: _PRIORITY_PATTERN, 
+                       _MESSAGE: _MESSAGE_PATTERN, 
+                       _NEW_LINE: _NEW_LINE_PATTERN
+                       }
+    
+    
+    def __init__(self, fileName, userFormat):
+        self.userFormat = userFormat
+        self.fileName = fileName
+        self.lineNumber = 0
+        
+        self.file = open(fileName)
+        self.timeIndex = -1
+        self.fields = self._getFields()
+        
+        for index, field in enumerate(self.fields):
+            if field == self._TIME:
+                self.timeIndex = index
+                break
+            
+        self.isHeadEnd = False
+        self.nextLine = None
+   
+    
+    def _getFields(self):
+        logFields = []
+        userPatterns = self.userFormat.split(sep=" ")
+        for userPattern in userPatterns:
+            isPattern = False
+            for field in self._FIELD_PATTERN_DICT:
+                fieldPattern = self._FIELD_PATTERN_DICT[field]
+                if fieldPattern.match(userPattern):
+                    logFields.append(field)
+                    isPattern = True
+                    break
+            if not isPattern:
+                logFields.append(userPattern)
+        return logFields
+    
+    
+    def getFields(self):
+        return self.getFields()
+    
+    
+    def __next__(self):
+        
+        self.lineNumber += 1
+        
+        if self.nextLine:
+            line = self.nextLine
+        else:
+            line = self.file.readline()
+            
+        if not line:
+            raise StopIteration()
+        
+        lineArr = line.split(sep=" ")
+            
+        for i in range(len(lineArr) - 1, -1, -1):
+            if(len(lineArr[i]) == 0):
+                del lineArr[i]
+        
+        logData = {self.LINE_NUMBER: self.lineNumber}
+        
+        if not self.isHeadEnd:
+            if self._isNewRecord(lineArr, self.timeIndex):
+                self.isHeadEnd = True
+            else:
+                #If is not a new line and there is not log data before, regard it as header
+                for field in self.fields:
+                    if field == self._MESSAGE:
+                        logData[field] = line
+                    else:
+                        logData[field] = ""
+                        
+        if self.isHeadEnd:
+            lineArrIndex = 0
+            for index, field in enumerate(self.fields):
+                logData[field] = lineArr[lineArrIndex]
+                if lineArrIndex == self.timeIndex:
+                    lineArrIndex += 1
+                    timeStr = logData[field] + " " + lineArr[lineArrIndex]
+                    logData[field] = time.strptime(timeStr, self._TIME_FORMAT)
+                lineArrIndex += 1
+                
+                if index == (len(self.fields) - 1) and lineArrIndex < len(lineArr):
+                    #If it is the last field but there are still data in record, add all data to last field
+                    for remindIndex in range(lineArrIndex, len(lineArr)):
+                        logData[field] = logData[field] + " " + lineArr[remindIndex]
+                        
+            while True:
+                self.nextLine = self.file.readline()
+                # File is over
+                if not self.nextLine:
+                    break
+                nextLineArr = self.nextLine.split(sep=" ")
+                if not self._isNewRecord(nextLineArr, self.timeIndex):
+                    logData[self._MESSAGE] = logData[self._MESSAGE] + self.nextLine
+                    self.lineNumber += 1
+                else:
+                    break
+                    
+        return logData
+    
+    def getData(self):
+        
+        logFields = self.getFields()
+        lines = open(self.fileName).readlines()
+        
+        logHeader = []
+        logDatas = []
+        
+        for lineIndex, line in enumerate(lines):
+            lineArr = line.split(sep=" ")
+            
+            for i in range(len(lineArr) - 1, -1, -1):
+                if(len(lineArr[i]) == 0):
+                    del lineArr[i]
+            
+            if self._isNewRecord(lineArr, self.timeIndex):
+                logData = {}
+                lineArrIndex = 0
+                for index, logField in enumerate(logFields):
+                    logData[logField] = lineArr[lineArrIndex]
+                    if lineArrIndex == self.timeIndex:
+                        lineArrIndex += 1
+                        timeStr = logData[logField] + " " + lineArr[lineArrIndex]
+                        logData[logField] = time.strptime(timeStr, self._TIME_FORMAT)
+                    lineArrIndex += 1
+                    
+                    if index == (len(logFields) - 1) and lineArrIndex < len(lineArr):
+                        #If it is the last field but there are still data in record, add all data to last field
+                        for remindIndex in range(lineArrIndex, len(lineArr)):
+                            logData[logField] = logData[logField] + " " + lineArr[remindIndex]
+                        
+                logData[self._LINE_NUMBER] = lineIndex + 1
+                logDatas.append(logData)
+            elif len(logDatas) == 0:
+                #If is not a new line and there is not log data before, regard it as header
+                logHeader.append(line)
+            else:
+                #If is not a new line, append this line after last record's message
+                lastData = logDatas[-1:][0]
+                lastData[self._MESSAGE] = lastData[self._MESSAGE] + line
+        return (logHeader, logDatas)
+    
+    
+    def _isNewRecord(self, lineArr, timeIndex):
+        '''If at the time index, the string can be casted to Time, regard this line is a new record
+        '''
+        if (timeIndex + 1) >= len(lineArr):
+            return False
+        timeStr = lineArr[timeIndex] + " " + lineArr[timeIndex + 1]
+        try:
+            time.strptime(timeStr, self._TIME_FORMAT)
+            return True
+        except Exception:
+            return False
+    
+
+class CSVReader:
+    
+    def __init__(self, fileName):
+        self.fileName = fileName
+        
+    def getFields(self):
+        reader = DictReader(open(self.fileName))
+        return reader.fieldnames();
+    
+    def getData(self):
+        return DictReader(open(self.fileName))
+
+
+
+'''
+Condition for Search
+'''
 
 class SearchCondition:
     
@@ -283,3 +486,17 @@ class FileResult:
     def __init__(self, fileName, result):
         self.fileName = fileName
         self.result = result
+        
+        
+
+if __name__ == "__main__":
+    
+    userFormat = "%d [%t] %-5p %c - %m"
+     
+    fileName = "../test-resource/test.log"
+    
+    logReader = Log4JReader(fileName, userFormat)
+    
+    for r in logReader:
+        print(str(r))
+    
