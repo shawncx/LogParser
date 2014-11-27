@@ -16,12 +16,9 @@ class Reader:
     def getFields(self):
         raise TypeError("You should use its sub class")
     
-    def next(self):
+    def getRecord(self):
         raise TypeError("You should use its sub class")
     
-    def __iter__(self):
-        return self
-
 
 class Log4JReader(Reader):
     
@@ -58,7 +55,6 @@ class Log4JReader(Reader):
         self.fileName = fileName
         self.lineNumber = 0
         
-        self.file = open(fileName)
         self.timeIndex = -1
         self.fields = self._getFields()
         
@@ -67,9 +63,15 @@ class Log4JReader(Reader):
                 self.timeIndex = index
                 break
             
-        self.isHeadEnd = False
-        self.nextLine = None
+#         self.isHeadEnd = False
+#         self.isAppendMessage = False
+        self.lastRecord = None
    
+        self.time1 = 0
+        self.time2 = 0
+        self.time3 = 0
+        self.time4 = 0
+        self.time5 = 0
     
     def _getFields(self):
         logFields = []
@@ -91,65 +93,68 @@ class Log4JReader(Reader):
         return self.getFields()
     
     
-    def __next__(self):
+    def getRecord(self):
         
-        self.lineNumber += 1
-        
-        if self.nextLine:
-            line = self.nextLine
-        else:
-            line = self.file.readline()
+        with open(self.fileName) as file:
             
-        if not line:
-            raise StopIteration()
-        
-        lineArr = line.split(sep=" ")
-            
-        for i in range(len(lineArr) - 1, -1, -1):
-            if(len(lineArr[i]) == 0):
-                del lineArr[i]
-        
-        logData = {self.LINE_NUMBER: self.lineNumber}
-        
-        if not self.isHeadEnd:
-            if self._isNewRecord(lineArr, self.timeIndex):
-                self.isHeadEnd = True
-            else:
-                #If is not a new line and there is not log data before, regard it as header
-                for field in self.fields:
-                    if field == self._MESSAGE:
-                        logData[field] = line
-                    else:
-                        logData[field] = ""
-                        
-        if self.isHeadEnd:
-            lineArrIndex = 0
-            for index, field in enumerate(self.fields):
-                logData[field] = lineArr[lineArrIndex]
-                if lineArrIndex == self.timeIndex:
-                    lineArrIndex += 1
-                    timeStr = logData[field] + " " + lineArr[lineArrIndex]
-                    logData[field] = time.strptime(timeStr, self._TIME_FORMAT)
-                lineArrIndex += 1
+            for line in file:
                 
-                if index == (len(self.fields) - 1) and lineArrIndex < len(lineArr):
-                    #If it is the last field but there are still data in record, add all data to last field
-                    for remindIndex in range(lineArrIndex, len(lineArr)):
-                        logData[field] = logData[field] + " " + lineArr[remindIndex]
-                        
-            while True:
-                self.nextLine = self.file.readline()
-                # File is over
-                if not self.nextLine:
-                    break
-                nextLineArr = self.nextLine.split(sep=" ")
-                if not self._isNewRecord(nextLineArr, self.timeIndex):
-                    logData[self._MESSAGE] = logData[self._MESSAGE] + self.nextLine
-                    self.lineNumber += 1
+                self.lineNumber += 1
+                 
+                s1 = time.time()
+                lineArr = line.split(sep=" ")
+                e1 = time.time()
+                self.time1 += e1 - s1
+                
+                s2 = time.time()
+                isNewRecord = self._isNewRecord(lineArr, self.timeIndex)
+                e2 = time.time()
+                self.time2 += e2 - s2
+                 
+                record = {self.LINE_NUMBER: self.lineNumber}
+                if not isNewRecord and self.lastRecord == None:
+                    # Header
+                    for field in self.fields:
+                            if field == self._MESSAGE:
+                                record[field] = line
+                            else:
+                                record[field] = ""
+                    yield record
+                     
+                elif not isNewRecord:
+                    # Message append
+                    self.lastRecord[self._MESSAGE] = self.lastRecord[self._MESSAGE] + line
+                 
                 else:
-                    break
-                    
-        return logData
+                     
+                    if self.lastRecord:
+                        # Get new record means last record has been finished, so yield it
+                        yield self.lastRecord
+                     
+                    s3 = time.time()
+                    # New Record
+                    lineArrIndex = 0
+                    for index, field in enumerate(self.fields):
+                        record[field] = lineArr[lineArrIndex]
+                        if lineArrIndex == self.timeIndex:
+                            lineArrIndex += 1
+                            timeStr = record[field] + " " + lineArr[lineArrIndex]
+                            record[field] = time.strptime(timeStr, self._TIME_FORMAT)
+                        lineArrIndex += 1
+                         
+                        if index == (len(self.fields) - 1) and lineArrIndex < len(lineArr):
+                            #If it is the last field but there are still data in record, add all data to last field
+#                             record[field] = record[field]
+                            record[field] = record[field] + " ".join(lineArr[lineArrIndex:])
+                                 
+                    self.lastRecord = record
+                    e3 = time.time()
+                    self.time3 += e3 - s3
+                     
+            if self.lastRecord:
+                # The last record need to be yield
+                yield self.lastRecord
+                
     
     def getData(self):
         
@@ -200,8 +205,13 @@ class Log4JReader(Reader):
         if (timeIndex + 1) >= len(lineArr):
             return False
         timeStr = lineArr[timeIndex] + " " + lineArr[timeIndex + 1]
+        
+        
         try:
+            s4 = time.time()
             time.strptime(timeStr, self._TIME_FORMAT)
+            e4 = time.time()
+            self.time4 += e4 - s4
             return True
         except Exception:
             return False
@@ -488,15 +498,32 @@ class FileResult:
         self.result = result
         
         
+        
 
 if __name__ == "__main__":
     
     userFormat = "%d [%t] %-5p %c - %m"
      
-    fileName = "../test-resource/test.log"
+    fileName = "../test-resource/scale_log.log"
+    
+#     fileName = "C:/Users/chen_xi/Desktop/cim/cim-logs/cim"
+    
+#     fileName = "../test-resource/test.log"
     
     logReader = Log4JReader(fileName, userFormat)
     
-    for r in logReader:
-        print(str(r))
+    st = time.time()
+    
+    for r in logReader.getRecord():
+#         print(str(r))
+        pass
+    
+    print(logReader.lineNumber)
+    print("time1: ", logReader.time1)
+    print("time2: ", logReader.time2)
+    print("time3: ", logReader.time3)
+    print("time4: ", logReader.time4)
+        
+    et = time.time()
+    print(str(et - st))
     
