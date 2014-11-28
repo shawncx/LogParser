@@ -6,17 +6,40 @@ Created on 2014/11/25
 
 
 from csv import DictReader
-import csv
 import re
 import time
 
+def createReader(fileName):
+    reader = None
+    if _isCSV(fileName):
+        reader = CSVReader(fileName)
+    elif _isLog(fileName):
+        reader = Log4JReader(fileName)
+    return reader
+
+def _isCSV(fileName):
+    partten = re.compile(r"\S*\.csv\Z")
+    if partten.match(fileName):
+        return True
+    else:
+        return False
+    
+def _isLog(fileName):
+    partten = re.compile(r"\S*\.log\Z")
+    if partten.match(fileName):
+        return True
+    else:
+        return False
 
 class Reader:
+    
+    def __init__(self, fileName):
+        self.fileName = fileName
     
     def getFields(self):
         raise TypeError("You should use its sub class")
     
-    def getRecord(self):
+    def getRecords(self):
         raise TypeError("You should use its sub class")
     
 
@@ -51,8 +74,8 @@ class Log4JReader(Reader):
     
     
     def __init__(self, fileName, userFormat):
+        super().__init__(fileName)
         self.userFormat = userFormat
-        self.fileName = fileName
         self.lineNumber = 0
         
         self.timeIndex = -1
@@ -93,7 +116,7 @@ class Log4JReader(Reader):
         return self.getFields()
     
     
-    def getRecord(self):
+    def getRecords(self):
         
         with open(self.fileName) as file:
             
@@ -101,15 +124,13 @@ class Log4JReader(Reader):
                 
                 self.lineNumber += 1
                  
-                s1 = time.time()
                 lineArr = line.split(sep=" ")
-                e1 = time.time()
-                self.time1 += e1 - s1
                 
-                s2 = time.time()
+#                 s1 = time.time()
+#                 isNewRecord, timeStruct = self._isNewRecord(lineArr, self.timeIndex)
                 isNewRecord = self._isNewRecord(lineArr, self.timeIndex)
-                e2 = time.time()
-                self.time2 += e2 - s2
+#                 e1 = time.time()
+#                 self.time1 += (e1 - s1)
                  
                 record = {self.LINE_NUMBER: self.lineNumber}
                 if not isNewRecord and self.lastRecord == None:
@@ -122,8 +143,11 @@ class Log4JReader(Reader):
                     yield record
                      
                 elif not isNewRecord:
+#                     s2 = time.time()
                     # Message append
                     self.lastRecord[self._MESSAGE] = self.lastRecord[self._MESSAGE] + line
+#                     e2 = time.time()
+#                     self.time2 += (e2 - s2)
                  
                 else:
                      
@@ -131,104 +155,63 @@ class Log4JReader(Reader):
                         # Get new record means last record has been finished, so yield it
                         yield self.lastRecord
                      
-                    s3 = time.time()
                     # New Record
+#                     s3 = time.time()
                     lineArrIndex = 0
                     for index, field in enumerate(self.fields):
-                        record[field] = lineArr[lineArrIndex]
                         if lineArrIndex == self.timeIndex:
+#                             record[field] = timeStruct
+                            record[field] = lineArr[lineArrIndex] + " " + lineArr[lineArrIndex + 1]
                             lineArrIndex += 1
-                            timeStr = record[field] + " " + lineArr[lineArrIndex]
-                            record[field] = time.strptime(timeStr, self._TIME_FORMAT)
+                        else:
+                            record[field] = lineArr[lineArrIndex]
                         lineArrIndex += 1
-                         
                         if index == (len(self.fields) - 1) and lineArrIndex < len(lineArr):
                             #If it is the last field but there are still data in record, add all data to last field
-#                             record[field] = record[field]
                             record[field] = record[field] + " ".join(lineArr[lineArrIndex:])
+#                     e3 = time.time()
+#                     self.time3 += (e3 - s3)
                                  
                     self.lastRecord = record
-                    e3 = time.time()
-                    self.time3 += e3 - s3
                      
             if self.lastRecord:
                 # The last record need to be yield
                 yield self.lastRecord
                 
     
-    def getData(self):
-        
-        logFields = self.getFields()
-        lines = open(self.fileName).readlines()
-        
-        logHeader = []
-        logDatas = []
-        
-        for lineIndex, line in enumerate(lines):
-            lineArr = line.split(sep=" ")
-            
-            for i in range(len(lineArr) - 1, -1, -1):
-                if(len(lineArr[i]) == 0):
-                    del lineArr[i]
-            
-            if self._isNewRecord(lineArr, self.timeIndex):
-                logData = {}
-                lineArrIndex = 0
-                for index, logField in enumerate(logFields):
-                    logData[logField] = lineArr[lineArrIndex]
-                    if lineArrIndex == self.timeIndex:
-                        lineArrIndex += 1
-                        timeStr = logData[logField] + " " + lineArr[lineArrIndex]
-                        logData[logField] = time.strptime(timeStr, self._TIME_FORMAT)
-                    lineArrIndex += 1
-                    
-                    if index == (len(logFields) - 1) and lineArrIndex < len(lineArr):
-                        #If it is the last field but there are still data in record, add all data to last field
-                        for remindIndex in range(lineArrIndex, len(lineArr)):
-                            logData[logField] = logData[logField] + " " + lineArr[remindIndex]
-                        
-                logData[self._LINE_NUMBER] = lineIndex + 1
-                logDatas.append(logData)
-            elif len(logDatas) == 0:
-                #If is not a new line and there is not log data before, regard it as header
-                logHeader.append(line)
-            else:
-                #If is not a new line, append this line after last record's message
-                lastData = logDatas[-1:][0]
-                lastData[self._MESSAGE] = lastData[self._MESSAGE] + line
-        return (logHeader, logDatas)
-    
-    
     def _isNewRecord(self, lineArr, timeIndex):
-        '''If at the time index, the string can be casted to Time, regard this line is a new record
+        '''
+        If at the time index, the string can be casted to Time, regard this line is a new record
         '''
         if (timeIndex + 1) >= len(lineArr):
+#             return (False, None)
             return False
         timeStr = lineArr[timeIndex] + " " + lineArr[timeIndex + 1]
         
+        p = re.compile(r"\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3}")
+        m = p.match(timeStr)
+         
+        return m != None
         
-        try:
-            s4 = time.time()
-            time.strptime(timeStr, self._TIME_FORMAT)
-            e4 = time.time()
-            self.time4 += e4 - s4
-            return True
-        except Exception:
-            return False
+#         try:
+#             timeStruct = time.strptime(timeStr, self._TIME_FORMAT)
+#             return (True, timeStruct)
+#         except Exception:
+#             return (False, None)
     
 
-class CSVReader:
+class CSVReader(Reader):
     
     def __init__(self, fileName):
-        self.fileName = fileName
-        
+        super().__init__(fileName)
+    
     def getFields(self):
         reader = DictReader(open(self.fileName))
-        return reader.fieldnames();
+        return reader.fieldnames;
     
-    def getData(self):
-        return DictReader(open(self.fileName))
-
+    def getRecords(self):
+        for record in DictReader(open(self.fileName)):
+            yield record
 
 
 '''
@@ -245,7 +228,7 @@ class SearchCondition:
         self.field = field
     
     def isFulfill(self, record):
-        pass
+        raise TypeError("You should use its sub class")
     
         
 class RangeSearchCondition(SearchCondition):
@@ -504,7 +487,7 @@ if __name__ == "__main__":
     
     userFormat = "%d [%t] %-5p %c - %m"
      
-    fileName = "../test-resource/scale_log.log"
+    fileName = "../test-resource/scale_log1.log"
     
 #     fileName = "C:/Users/chen_xi/Desktop/cim/cim-logs/cim"
     
@@ -514,15 +497,14 @@ if __name__ == "__main__":
     
     st = time.time()
     
-    for r in logReader.getRecord():
+    for r in logReader.getRecords():
 #         print(str(r))
         pass
     
+#     print(logReader.time1)
+#     print(logReader.time2)
+#     print(logReader.time3)
     print(logReader.lineNumber)
-    print("time1: ", logReader.time1)
-    print("time2: ", logReader.time2)
-    print("time3: ", logReader.time3)
-    print("time4: ", logReader.time4)
         
     et = time.time()
     print(str(et - st))

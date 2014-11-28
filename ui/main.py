@@ -3,7 +3,6 @@ Created on 2014/11/12
 
 @author: chen_xi
 '''
-from csv import DictReader
 from tkinter import Tk, Listbox, Frame, Text, Button, Scrollbar, \
     Toplevel, Label, Entry, IntVar, Radiobutton, StringVar
 from tkinter.constants import END, N, E, W, S, HORIZONTAL, VERTICAL, DISABLED, \
@@ -14,7 +13,7 @@ import traceback
 
 from handler import loghandler
 from handler.loghandler import SingleFileSearch, JoinFileSearch, Search, \
-    EqualSearchCondition, RangeSearchCondition, JoinSearchCondition,\
+    EqualSearchCondition, RangeSearchCondition, JoinSearchCondition, \
     ContainSearchCondition
 from model.filemodel import FileModel
 
@@ -242,7 +241,8 @@ class LogUI(Frame):
         
     def _inflateFieldPanel(self, fileModel):
         fileName = fileModel.fileName
-        fields = loghandler.getFields(fileName)
+        reader = loghandler.createReader(fileName)
+        fields = reader.getFields()
         displayFields = fileModel.displayFields
         displayFieldDict = set(displayFields)
         
@@ -253,7 +253,7 @@ class LogUI(Frame):
                 self.displayFieldList.insert(END, field)
             else:
                 self.noDisplayFieldList.insert(END, field)
-        
+                
     
     def _initConsole(self):
         
@@ -293,7 +293,9 @@ class LogUI(Frame):
         for fileModel in self.fileModels:
             fileName = fileModel.fileName
             
-            singleSearch = SingleFileSearch(fileName, DictReader(open(fileName)), fileModel.searchConds, fileModel.relation)
+            reader = loghandler.createReader(fileName)
+            singleSearch = SingleFileSearch(fileName, reader.getRecords(), \
+                                            fileModel.searchConds, fileModel.relation)
             fileSearchs.append(singleSearch)
             
             joinDict = {}
@@ -305,7 +307,9 @@ class LogUI(Frame):
                 joinDict[toFileName].append(joinCond)
             
             for toFileName in joinDict:
-                joinSearch = JoinFileSearch(fileName, DictReader(open(fileName)), toFileName, DictReader(open(toFileName)), joinDict[toFileName])
+                toReader = loghandler.createReader(toFileName)
+                joinSearch = JoinFileSearch(fileName, reader.getRecords(), toFileName, \
+                                            toReader.getRecords(), joinDict[toFileName])
                 joinSearchs.append(joinSearch)
                 
         search = Search(fileSearchs, joinSearchs)
@@ -359,11 +363,13 @@ class LogUI(Frame):
              
         
     def _addFile(self):
-        fileTypes = [('csv files', '*.csv'), ('All files', '*')]
+        fileTypes = [('csv files', '*.csv'), ('log files', '*.log'), ('All files', '*')]
         
         selectedFile = askopenfilename(filetypes=fileTypes)
-        if selectedFile is not None:
-            newModel = FileModel(selectedFile, searchConds=[], relation="and", joinCondTuples=[], displayFields=loghandler.getFields(selectedFile))
+        if selectedFile is not None and len(selectedFile.strip(" ")) > 0:
+            reader = loghandler.createReader(selectedFile)
+            newModel = FileModel(selectedFile, searchConds=[], relation="and", \
+                                 joinCondTuples=[], displayFields=reader.getFields())
             self.fileModels.append(newModel)
             self.fileList.insert(END, newModel.fileName)
             self._setSelectedFileIndex(len(self.fileModels) - 1)
@@ -481,7 +487,8 @@ class LogUI(Frame):
         fieldLabel = Label(window, text="Field Name: ")
         fieldLabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
         
-        fields = loghandler.getFields(self._getSelectedFile().fileName)
+        reader = loghandler.createReader(self._getSelectedFile().fileName)
+        fields = reader.getFields()
         fieldVar = StringVar(window)
         fieldInput = Combobox(window, textvariable=fieldVar, values=fields, width=20)
         fieldInput.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky=W)
@@ -603,7 +610,8 @@ class LogUI(Frame):
         fromfieldLabel = Label(window, text="Field in From File: ")
         fromfieldLabel.grid(row=3, column=0, padx=5, pady=5, sticky=W)
         
-        fromFields = loghandler.getFields(self._getSelectedFile().fileName)
+        reader = loghandler.createReader(self._getSelectedFile().fileName)
+        fromFields = reader.getFields()
         fromFieldVar = StringVar(window)
         fieldInput = Combobox(window, textvariable=fromFieldVar, values=fromFields, width=20)
         fieldInput.grid(row=3, column=1, columnspan=2, padx=5, pady=5, sticky=W)
@@ -618,7 +626,8 @@ class LogUI(Frame):
         
         def updateToFieldInput(evt):
             if fileVar.get() is not None and len(fileVar.get()) > 0:
-                toFields = loghandler.getFields(fileVar.get())
+                reader = loghandler.createReader(fileVar.get())
+                toFields = reader.getFields()
                 window.grid_slaves(4, 1)[0].grid_forget()
                 toFieldInput = Combobox(window, textvariable=toFieldVar, values=toFields, width=20)
                 toFieldInput.grid(row=4, column=1, columnspan=2, padx=5, pady=5, sticky=W)
