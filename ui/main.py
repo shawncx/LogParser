@@ -3,23 +3,28 @@ Created on 2014/11/12
 
 @author: chen_xi
 '''
+import copy
+import time
 from tkinter import Tk, Listbox, Frame, Text, Button, Scrollbar, \
     Toplevel, Label, Entry, IntVar, Radiobutton, StringVar
 from tkinter.constants import END, N, E, W, S, HORIZONTAL, VERTICAL, DISABLED, \
     NORMAL
 from tkinter.filedialog import askopenfilename
 from tkinter.ttk import Combobox, Separator
-import traceback
 
 from handler import loghandler
 from handler.loghandler import SingleFileSearch, JoinFileSearch, Search, \
-    EqualSearchCondition, RangeSearchCondition, JoinSearchCondition, \
+    EqualSearchCondition, RangeSearchCondition, EqualJoinCondition, \
     ContainSearchCondition
 from model.filemodel import FileModel
 
 
 class LogUI(Frame):
-  
+    
+    _DEFAULT_CONVERSION_PATTERN = "%d [%t] %p %c - %m"
+    
+    _DEFAULT_DATE_PATTERN_FOR_JAVA = "yyyy-MM-dd HH:mm:ss,SSS"
+    
     def __init__(self, parent):
         Frame.__init__(self, parent)   
         self.parent = parent
@@ -32,6 +37,9 @@ class LogUI(Frame):
         self._initUI()
         self.selectedFileIndex = -1
         
+    def show(self, content):
+        self.console.delete("0.0", END)
+        self.console.insert("0.0", content)
         
     def _initUI(self):
         self.parent.title("Log Parser")
@@ -51,7 +59,7 @@ class LogUI(Frame):
         frame.grid(row=0, column=0, sticky=E + W + S + N)
         
         label = Label(frame, text="File List: ")
-        label.grid(sticky=N + W)
+        label.grid(row=0, column=0, columnspan=1, sticky=W)
         
         self.fileList = Listbox(frame, width=40)
         self.fileList.grid(row=1, column=0, rowspan=2, columnspan=3)
@@ -75,16 +83,19 @@ class LogUI(Frame):
         downBtn.grid(row=2, column=4, padx=5, pady=5, sticky=N)
         
         newBtn = Button(frame, text="New", width=7, command=self._addFile)
-        newBtn.grid(row=4, column=1, pady=5, sticky=E + S)
+        newBtn.grid(row=4, column=0, pady=5, sticky=E)
         
         delBtn = Button(frame, text="Delete", width=7, command=self._deleteFile)
-        delBtn.grid(row=4, column=2, padx=5, pady=5, sticky=W + S)
+        delBtn.grid(row=4, column=1, pady=5)
+        
+        updateBtn = Button(frame, text="Update", width=7, command=self._modifyFile)
+        updateBtn.grid(row=4, column=2, pady=5, sticky=W)
         
             
     def _inflateFileList(self):
         self.fileList.delete(0, END)
         for fileModel in self.fileModels:
-            self.fileList.insert(END, fileModel.fileName)
+            self.fileList.insert(END, fileModel.reader.fileName)
             
         
     def _initSearchCondPanel(self):
@@ -240,9 +251,7 @@ class LogUI(Frame):
         
         
     def _inflateFieldPanel(self, fileModel):
-        fileName = fileModel.fileName
-        reader = loghandler.createReader(fileName)
-        fields = reader.getFields()
+        fields = fileModel.reader.getFields()
         displayFields = fileModel.displayFields
         displayFieldDict = set(displayFields)
         
@@ -277,23 +286,17 @@ class LogUI(Frame):
         
     
     def _showSearchResult(self):
-        try:
-            res = self._searchResult()
-            formatRes = self._formatSearchResult(res)
-        except Exception:
-            formatRes = "Error!\r\n" + traceback.format_exc()
+        res = self._searchResult()
+        formatRes = self._formatSearchResult(res)
+        self.show(formatRes)
         
-        self.console.delete("0.0", END)
-        self.console.insert("0.0", formatRes)
-    
     
     def _searchResult(self):
         fileSearchs = []
         joinSearchs = []
         for fileModel in self.fileModels:
-            fileName = fileModel.fileName
-            
-            reader = loghandler.createReader(fileName)
+            reader = copy.copy(fileModel.reader)
+            fileName = reader.fileName
             singleSearch = SingleFileSearch(fileName, reader.getRecords(), \
                                             fileModel.searchConds, fileModel.relation)
             fileSearchs.append(singleSearch)
@@ -307,10 +310,13 @@ class LogUI(Frame):
                 joinDict[toFileName].append(joinCond)
             
             for toFileName in joinDict:
-                toReader = loghandler.createReader(toFileName)
-                joinSearch = JoinFileSearch(fileName, reader.getRecords(), toFileName, \
-                                            toReader.getRecords(), joinDict[toFileName])
-                joinSearchs.append(joinSearch)
+                for fileModel in self.fileModels:
+                    if fileModel.reader.fileName == toFileName:
+                        toReader = copy.copy(fileModel.reader)
+                        joinSearch = JoinFileSearch(fileName, reader.getRecords(), toFileName, \
+                                                    toReader.getRecords(), joinDict[toFileName])
+                        joinSearchs.append(joinSearch)
+                        break
                 
         search = Search(fileSearchs, joinSearchs)
         return search.process()
@@ -320,7 +326,7 @@ class LogUI(Frame):
         formatRes = self._formatSummary(searchResult) + "\r\n"
         fileResults = searchResult.results
         for fileModel in self.fileModels:
-            fileName = fileModel.fileName
+            fileName = fileModel.reader.fileName
             fileResult = fileResults[fileName]
             displayFields = fileModel.displayFields
             formatRes += self._formatFileResult(fileResult, displayFields)
@@ -333,7 +339,7 @@ class LogUI(Frame):
         res += "Time Cost: " + str(searchResult.timeCost) + " Seconds\r\n"
         fileResults = searchResult.results
         for fileModel in self.fileModels:
-            fileName = fileModel.fileName
+            fileName = fileModel.reader.fileName
             fileResult = fileResults[fileName]
             res += fileName + "    Size: " + str(len(fileResult.result)) + "\r\n"
         return res
@@ -367,11 +373,15 @@ class LogUI(Frame):
         
         selectedFile = askopenfilename(filetypes=fileTypes)
         if selectedFile is not None and len(selectedFile.strip(" ")) > 0:
-            reader = loghandler.createReader(selectedFile)
-            newModel = FileModel(selectedFile, searchConds=[], relation="and", \
-                                 joinCondTuples=[], displayFields=reader.getFields())
+            if loghandler.isCSV(selectedFile):
+                reader = loghandler.createReader(selectedFile)
+            elif loghandler.isLog(selectedFile):
+                reader = loghandler.createReader(selectedFile, self._DEFAULT_CONVERSION_PATTERN, \
+                                                 self._DEFAULT_DATE_PATTERN_FOR_JAVA)
+            newModel = FileModel(reader, searchConds=[], relation="and", joinCondTuples=[], \
+                                 displayFields=copy.copy(reader.getFields()))
             self.fileModels.append(newModel)
-            self.fileList.insert(END, newModel.fileName)
+            self.fileList.insert(END, newModel.reader.fileName)
             self._setSelectedFileIndex(len(self.fileModels) - 1)
         
         
@@ -381,13 +391,21 @@ class LogUI(Frame):
             self.fileList.delete(index)
             del self.fileModels[index]
             self._setSelectedFileIndex(-1)
-        
+            
+            
+    def _modifyFile(self):
+        selectedFile = self._getSelectedFile()
+        if not selectedFile:
+            return
+        fileName = selectedFile.reader.fileName
+        if loghandler.isLog(fileName):
+            self._popupLogPropertyWindow(selectedFile)
         
     def _upFile(self):
         if self._getSelectedFileIndex() <= 0:
             return
         index = self._getSelectedFileIndex()
-        selectedFileName = self._getSelectedFile().fileName
+        selectedFileName = self._getSelectedFile().reader.fileName
         
         if index > 0:
             self.fileList.insert((index - 1), selectedFileName)
@@ -401,7 +419,7 @@ class LogUI(Frame):
         if self._getSelectedFileIndex() < 0:
             return
         index = self._getSelectedFileIndex()
-        selectedFileName = self._getSelectedFile().fileName
+        selectedFileName = self._getSelectedFile().reader.fileName
         
         if index < (len(self.fileModels) - 1):
             self.fileList.insert((index + 2), selectedFileName)
@@ -471,8 +489,44 @@ class LogUI(Frame):
             return
         
         self._popupJoinCondWindow(self._getSelectedJoinCondIndex())
-         
-         
+        
+    
+    def _popupLogPropertyWindow(self, fileModel):
+        
+        window = Toplevel(self)
+        
+        title = Label(window, text="Log Property")
+        title.grid(row=0, column=0, padx=5, pady=5, sticky=W + N)
+        
+        conversionPatternLabel = Label(window, text="Conversion Pattern: ")
+        conversionPatternLabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
+        
+        conversionPatternInput = Entry(window, width=30)
+        conversionPatternInput.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky=W + E)
+        conversionPatternInput.insert(0, fileModel.reader.conversionPattern)
+        
+        datePatternLabel = Label(window, text="Date Pattern (Java): ")
+        datePatternLabel.grid(row=2, column=0, padx=5, pady=5, sticky=W)
+        
+        datePatternInput = Entry(window, width=30)
+        datePatternInput.grid(row=2, column=1, columnspan=2, padx=5, pady=5, sticky=W + E)
+        datePatternInput.insert(0, fileModel.reader.datePattern)
+        
+        
+        def _modifyLogProperty():
+            reader = loghandler.createReader(fileModel.reader.fileName, conversionPatternInput.get(), \
+                                             datePatternInput.get())
+            fileModel.reader = reader
+            fileModel.displayFields = copy.copy(reader.getFields())
+            window.destroy()
+        
+        okBtn = Button(window, text="Confirm", width=7, command=_modifyLogProperty)
+        okBtn.grid(row=4, column=1, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
+        
+        clsBtn = Button(window, text="Close", width=7, command=lambda: window.destroy())
+        clsBtn.grid(row=4, column=2, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
+        
+        
     def _popupSearchCondWindow(self, index=-1):
         if index < 0:
             cond = EqualSearchCondition("", "")
@@ -487,7 +541,8 @@ class LogUI(Frame):
         fieldLabel = Label(window, text="Field Name: ")
         fieldLabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
         
-        reader = loghandler.createReader(self._getSelectedFile().fileName)
+        reader = self._getSelectedFile().reader
+        
         fields = reader.getFields()
         fieldVar = StringVar(window)
         fieldInput = Combobox(window, textvariable=fieldVar, values=fields, width=20)
@@ -511,37 +566,67 @@ class LogUI(Frame):
         maxInput = Entry(window)
         maxInput.grid(row=7, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
-        sarchKind = IntVar()
+        datePatternLabel = Label(window, text="Date Pattern (Python): ")
+        datePatternLabel.grid(row=8, column=0, padx=5, pady=5, sticky=W)
+        
+        datePatternInput = Entry(window)
+        datePatternInput.grid(row=8, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+        
+        searchKind = IntVar()
+        
+        searchDataType = StringVar()
         
         def _enableEqual():
             valueInput.config(state=NORMAL)
             minInput.config(state=DISABLED)
             maxInput.config(state=DISABLED)
-            equalBtn.select()
         
         def _enableContain():
             valueInput.config(state=NORMAL)
             minInput.config(state=DISABLED)
             maxInput.config(state=DISABLED)
-            containBtn.select()
             
         def _enableRange():
             valueInput.config(state=DISABLED)
             minInput.config(state=NORMAL)
             maxInput.config(state=NORMAL)
-            rangeBtn.select()
+            
+        def _enableStr():
+            datePatternInput.config(state=DISABLED)
+        
+        def _enableNumber():
+            datePatternInput.config(state=DISABLED)
+            
+        def _enableDate():
+            datePatternInput.config(state=NORMAL)
+            
             
         typeLabel = Label(window, text="Search Type: ")
         typeLabel.grid(row=2, column=0, padx=5, pady=5, sticky=W)
         
-        equalBtn = Radiobutton(window, text="Equal", variable=sarchKind, value=1, command=_enableEqual)
+        equalBtn = Radiobutton(window, text="Equal", variable=searchKind, value=1, command=_enableEqual)
         equalBtn.grid(row=2, column=1, columnspan=1, padx=5, pady=5, sticky=W)
         
-        containBtn = Radiobutton(window, text="Contain", variable=sarchKind, value=2, command=_enableContain)
+        containBtn = Radiobutton(window, text="Contain", variable=searchKind, value=2, command=_enableContain)
         containBtn.grid(row=3, column=1, columnspan=1, padx=5, pady=5, sticky=W)
         
-        rangeBtn = Radiobutton(window, text="Range", variable=sarchKind, value=3, command=_enableRange)
+        rangeBtn = Radiobutton(window, text="Range", variable=searchKind, value=3, command=_enableRange)
         rangeBtn.grid(row=4, column=1, columnspan=1, padx=5, pady=5, sticky=W)
+        
+        strBtn = Radiobutton(window, text="String", variable=searchDataType, value=RangeSearchCondition.TYPE_STRING, \
+                             command=_enableStr)
+        strBtn.grid(row=2, column=2, columnspan=1, padx=5, pady=5, sticky=W)
+        
+        numberBtn = Radiobutton(window, text="Number", variable=searchDataType, value=RangeSearchCondition.TYPE_NUMBER, \
+                                command=_enableNumber)
+        numberBtn.grid(row=3, column=2, columnspan=1, padx=5, pady=5, sticky=W)
+        
+        dateBtn = Radiobutton(window, text="Date (" + RangeSearchCondition.DEFAULT_DATE_FORMAT + ")", \
+                              variable=searchDataType, value=RangeSearchCondition.TYPE_DATE, command=_enableDate)
+        dateBtn.grid(row=4, column=2, columnspan=1, padx=5, pady=5, sticky=W)
+        
+        equalBtn.select()
+        strBtn.select()
         
         # init value
         fieldVar.set(cond.field)
@@ -552,20 +637,33 @@ class LogUI(Frame):
             valueInput.insert(0, cond.val)
             _enableContain()
         elif isinstance(cond, RangeSearchCondition):
-            minInput.insert(0, cond.valMin)
-            maxInput.insert(0, cond.valMax)
             _enableRange()
+            if cond.dataType == RangeSearchCondition.TYPE_DATE:
+                minInput.insert(0, time.strftime(RangeSearchCondition.DEFAULT_DATE_FORMAT, cond.valMin))
+                maxInput.insert(0, time.strftime(RangeSearchCondition.DEFAULT_DATE_FORMAT, cond.valMax))
+                datePatternInput.insert(0, cond.datePattern)
+                _enableDate()
+            elif cond.dataType == RangeSearchCondition.TYPE_NUMBER:
+                minInput.insert(0, str(cond.valMin))
+                maxInput.insert(0, str(cond.valMax))
+                _enableNumber()
+            elif cond.dataType == RangeSearchCondition.TYPE_STRING:
+                minInput.insert(0, cond.valMin)
+                maxInput.insert(0, cond.valMax)
+                _enableStr()
+                
             
         def _newCond():
             '''
             create new condition
             '''
-            if sarchKind.get() == 1:
+            if searchKind.get() == 1:
                 cond = EqualSearchCondition(fieldVar.get(), valueInput.get())
-            elif sarchKind.get() == 2:
+            elif searchKind.get() == 2:
                 cond = ContainSearchCondition(fieldVar.get(), valueInput.get())
-            elif sarchKind.get() == 3:
-                cond = RangeSearchCondition(fieldVar.get(), minInput.get(), maxInput.get())
+            elif searchKind.get() == 3:
+                cond = RangeSearchCondition(fieldVar.get(), minInput.get(), maxInput.get(), \
+                                            searchDataType.get(), datePatternInput.get())
                 
             selectedFile = self._getSelectedFile()
             
@@ -580,15 +678,15 @@ class LogUI(Frame):
             window.destroy()
         
         okBtn = Button(window, text="Confirm", width=7, command=_newCond)
-        okBtn.grid(row=8, column=1, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
+        okBtn.grid(row=9, column=1, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
         
         clsBtn = Button(window, text="Close", width=7, command=lambda: window.destroy())
-        clsBtn.grid(row=8, column=2, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
+        clsBtn.grid(row=9, column=2, rowspan=1, columnspan=1, sticky=E, padx=5, pady=5)
         
         
     def _popupJoinCondWindow(self, index=-1):
         if index < 0:
-            cond = JoinSearchCondition("", "")
+            cond = EqualJoinCondition("", "")
             toFileName = ""
         else:
             condTuple = self._getSelectedFile().joinCondTuples[index]
@@ -604,13 +702,15 @@ class LogUI(Frame):
         fileNamelabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
         
         fileVar = StringVar(window)
-        fileNameinput = Combobox(window, textvariable=fileVar, values=self.fileList.get(0, END), width=30)
+        fileNameinput = Combobox(window, textvariable=fileVar, values=self.fileList.get(0, END), \
+                                 width=30)
         fileNameinput.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky=W)
         
         fromfieldLabel = Label(window, text="Field in From File: ")
         fromfieldLabel.grid(row=3, column=0, padx=5, pady=5, sticky=W)
         
-        reader = loghandler.createReader(self._getSelectedFile().fileName)
+        reader = self._getSelectedFile().reader
+        
         fromFields = reader.getFields()
         fromFieldVar = StringVar(window)
         fieldInput = Combobox(window, textvariable=fromFieldVar, values=fromFields, width=20)
@@ -626,11 +726,14 @@ class LogUI(Frame):
         
         def updateToFieldInput(evt):
             if fileVar.get() is not None and len(fileVar.get()) > 0:
-                reader = loghandler.createReader(fileVar.get())
-                toFields = reader.getFields()
-                window.grid_slaves(4, 1)[0].grid_forget()
-                toFieldInput = Combobox(window, textvariable=toFieldVar, values=toFields, width=20)
-                toFieldInput.grid(row=4, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+                for fileModel in self.fileModels:
+                    if fileModel.reader.fileName == fileVar.get():
+                        reader = fileModel.reader
+                        toFields = reader.getFields()
+                        window.grid_slaves(4, 1)[0].grid_forget()
+                        toFieldInput = Combobox(window, textvariable=toFieldVar, values=toFields, width=20)
+                        toFieldInput.grid(row=4, column=1, columnspan=2, padx=5, pady=5, sticky=W)
+                        break
         
         fileNameinput.bind('<<ComboboxSelected>>', updateToFieldInput)
         
@@ -643,7 +746,7 @@ class LogUI(Frame):
         def _newCond():
             '''create new condition
             '''
-            cond = JoinSearchCondition(fromFieldVar.get(), toFieldVar.get())
+            cond = EqualJoinCondition(fromFieldVar.get(), toFieldVar.get())
             toFileName = fileVar.get()
             
             selectedFile = self._getSelectedFile()
@@ -709,5 +812,4 @@ if __name__ == "__main__":
     root = Tk()
     
     ui = LogUI(root)
-    
     ui.mainloop() 
