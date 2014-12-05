@@ -5,9 +5,12 @@ Created on 2014/11/25
 '''
 
 
-from csv import DictReader
+from csv import DictReader, DictWriter
 import re
 import time
+
+DEFAULT_ENCODING = "UTF-8"
+
 
 def createReader(fileName, conversionPattern=None, datePattern=None):
     reader = None
@@ -16,6 +19,14 @@ def createReader(fileName, conversionPattern=None, datePattern=None):
     elif isLog(fileName):
         reader = Log4JReader(fileName, conversionPattern, datePattern)
     return reader
+
+def createWriter(fileName):
+    writer = None
+    if isCSV(fileName):
+        writer = CSVWriter(fileName)
+    elif isLog(fileName):
+        writer = LogWriter(fileName)
+    return writer
 
 def isCSV(fileName):
     partten = re.compile(r"\S*\.csv\Z")
@@ -30,6 +41,43 @@ def isLog(fileName):
         return True
     else:
         return False
+    
+    
+class Writer:
+    
+    def __init__(self, fileName):
+        self.fileName = fileName
+        
+    def write(self, recordDicts, fieldNames):
+        raise TypeError("You should use its sub class")
+
+class CSVWriter(Writer):
+    
+    def __init__(self, fileName):
+        super().__init__(fileName)
+        
+    def write(self, recordDicts, fieldNames):
+        with open(self.fileName, "w", newline='', encoding=DEFAULT_ENCODING) as file:
+            writer = DictWriter(file, fieldNames)
+            writer.writeheader()
+            writer.writerows(recordDicts);
+        
+class LogWriter(Writer):
+    
+    def __init__(self, fileName):
+        super().__init__(fileName)
+        
+    def write(self, recordDicts, fieldNames):
+        with open(self.fileName, "w", encoding=DEFAULT_ENCODING) as file:
+            for recordDict in recordDicts:
+                record = self._dictToRecord(recordDict, fieldNames)
+                file.write(record + "\n")
+             
+    def _dictToRecord(self, recordDict, fieldNames):
+        record = ""
+        for key in fieldNames:
+            record += " " + recordDict[key]
+        return record
 
 class Reader:
     
@@ -63,11 +111,11 @@ class Log4JReader(Reader):
     _NEW_LINE_PATTERN = r"\n"
     _BLANK_PATTERN = r"\s"
     
-    _FIELD_PATTERN_DICT = {_TIME: "", 
-                       _CLASS: _CLASS_PATTERN, 
-                       _THREAD: _THREAD_PATTERN, 
-                       _PRIORITY: _PRIORITY_PATTERN, 
-                       _MESSAGE: _MESSAGE_PATTERN, 
+    _FIELD_PATTERN_DICT = {_TIME: "",
+                       _CLASS: _CLASS_PATTERN,
+                       _THREAD: _THREAD_PATTERN,
+                       _PRIORITY: _PRIORITY_PATTERN,
+                       _MESSAGE: _MESSAGE_PATTERN,
                        _NEW_LINE: _NEW_LINE_PATTERN
                        }
     
@@ -79,13 +127,30 @@ class Log4JReader(Reader):
     _TIME_SECOND = "s"
     _TIME_MILLISECOND = "S"
     
-    _TIME_PATTERN_DICT = {_TIME_YEAR: "",
-                          _TIME_MONTH: "",
-                          _TIME_DAY: "",
-                          _TIME_HOUR: "",
-                          _TIME_MINUTE: "",
-                          _TIME_SECOND: "",
-                          _TIME_MILLISECOND: ""
+    _DATE_YEAR = "Y"
+    _DATE_MONTH = "m"
+    _DATE_DAY = "d"
+    _DATE_HOUR = "H"
+    _DATE_MINUTE = "M"
+    _DATE_SECOND = "S"
+    _DATE_MILLISECOND = "f"
+    
+    _DATE_YEAR_PATTERN = r"(?:\d{2}|\d{4})"
+    _DATE_MONTH_PATTERN = r"(?:\d{1}|\d{2})"
+    _DATE_DAY_PATTERN = r"(?:\d{1}|\d{2})"
+    _DATE_HOUR_PATTERN = r"(?:\d{1}|\d{2})"
+    _DATE_MINUTE_PATTERN = r"(?:\d{1}|\d{2})"
+    _DATE_SECOND_PATTERN = r"(?:\d{1}|\d{2})"
+    _DATE_MILLISECOND_PATTERN = r"\d+"
+    
+    
+    _DATE_PATTERN_DICT = {_DATE_YEAR: _DATE_YEAR_PATTERN,
+                          _DATE_MONTH: _DATE_MONTH_PATTERN,
+                          _DATE_DAY: _DATE_DAY_PATTERN,
+                          _DATE_HOUR: _DATE_HOUR_PATTERN,
+                          _DATE_MINUTE: _DATE_MINUTE_PATTERN,
+                          _DATE_SECOND: _DATE_SECOND_PATTERN,
+                          _DATE_MILLISECOND: _DATE_MILLISECOND_PATTERN
                           }
     
     _ESCAPE_CHARACTORS = "$()*+.?\\/^{}[]|"
@@ -104,30 +169,21 @@ class Log4JReader(Reader):
         self.datePattern = datePattern
         
         pattern = r""
-        patternLength = 0
-        lastPattern = None
+        nextIsPattern = False
         for s in datePattern:
-            if s in self._TIME_PATTERN_DICT:
-                if lastPattern == s or lastPattern == None:
-                    patternLength += 1
-                else:
-                    pattern += r"\d{" + str(patternLength) + "}"
-                    patternLength = 0
-                lastPattern = s
-            else:
-                if patternLength > 0:
-                    pattern += r"\d{" + str(patternLength) + "}"
-                    patternLength = 0
-                if s == self._BLANk:
+            if not nextIsPattern: 
+                if s == self._TAG:
+                    nextIsPattern = True
+                elif s == self._BLANk:
                     pattern += self._BLANK_PATTERN
                 else:
                     if s in self._ESCAPE_CHARACTORS:
-                            pattern += "\\"
+                        pattern += "\\"
                     pattern += s
-                lastPattern = None
-            
-        if patternLength > 0:
-            pattern += r"\d{" + str(patternLength) + "}"
+            else:
+                if s in self._DATE_PATTERN_DICT:
+                    pattern += self._DATE_PATTERN_DICT[s]
+                    nextIsPattern = False
         self.userdatePattern = "(?P<" + self._TIME + ">" + pattern + ")"
    
     
@@ -166,7 +222,7 @@ class Log4JReader(Reader):
     
     def getRecords(self):
         
-        with open(self.fileName, errors="ignore") as file:
+        with open(self.fileName, encoding=DEFAULT_ENCODING) as file:
             
             for line in file:
                 
@@ -214,11 +270,11 @@ class CSVReader(Reader):
         super().__init__(fileName)
     
     def getFields(self):
-        reader = DictReader(open(self.fileName))
+        reader = DictReader(open(self.fileName, encoding=DEFAULT_ENCODING))
         return reader.fieldnames;
     
     def getRecords(self):
-        for record in DictReader(open(self.fileName)):
+        for record in DictReader(open(self.fileName, encoding=DEFAULT_ENCODING)):
             yield record
 
 
@@ -272,6 +328,8 @@ class RangeSearchCondition(SearchCondition):
         tarValue = record[self.field]
         if not tarValue:
             return (False, self.COMP_BELOW)
+        if not tarValue:
+            return (False, self.COMP_BELOW)
         if self.dataType == self.TYPE_DATE:
             tarValue = time.strptime(tarValue, self.datePattern)
         elif self.dataType == self.TYPE_NUMBER:
@@ -285,8 +343,11 @@ class RangeSearchCondition(SearchCondition):
             return (False, self.COMP_BELOW)
         
     def toString(self):
-        return self.field + " in [" + time.strftime(RangeSearchCondition.DEFAULT_DATE_FORMAT, self.valMin) \
-            + ", " + time.strftime(RangeSearchCondition.DEFAULT_DATE_FORMAT, self.valMax) + "]"
+        if self.dataType == self.TYPE_DATE:
+            return self.field + " in [" + time.strftime(RangeSearchCondition.DEFAULT_DATE_FORMAT, self.valMin) \
+                + ", " + time.strftime(RangeSearchCondition.DEFAULT_DATE_FORMAT, self.valMax) + "]"
+        else:
+            return self.field + " in [" + str(self.valMin) + ", " + str(self.valMax) + "]"
         
         
 class EqualSearchCondition(SearchCondition):
@@ -331,10 +392,10 @@ class JoinCondition:
         raise TypeError("You should use its sub class")
     
     
-class EqualJoinCondition:
+class EqualJoinCondition(JoinCondition):
     
-    def __init__(self, fromField, toField):
-        super().__init__(fromField, toField)
+    def __init__(self, fromField, toField, disabled=False):
+        super().__init__(fromField, toField, disabled)
         
     def toString(self):
         return self.fromField + " = " + self.toField
@@ -439,23 +500,23 @@ class JoinFileSearch:
                     2 means failed match
                 '''
                 
-                #If new field or value in from file appear, init the cache
+                # If new field or value in from file appear, init the cache
                 if not fromField in fromFieldCache:
                     fromFieldCache[fromField] = {fromValue: 0}
                 elif not fromValue in fromFieldCache[fromField]:
                     fromFieldCache[fromField][fromValue] = 0
                 
-                #Process
+                # Process
                 if fromFieldCache[fromField][fromValue] == 2:
-                    #The value of field has been checked and not matched
-                    #Abandon it
+                    # The value of field has been checked and not matched
+                    # Abandon it
                     continue
                 elif fromFieldCache[fromField][fromValue] == 1:
-                    #The value of field has been checked and matched
-                    #Only add the from record, because to record has been added last time
+                    # The value of field has been checked and matched
+                    # Only add the from record, because to record has been added last time
                     fromFileResult.result.append(record)
                 elif fromFieldCache[fromField][fromValue] == 0:
-                    #The value of field has not been checked
+                    # The value of field has not been checked
                     if fromValue in self.indexes[toField]:
                         fromFileResult.result.append(record)
                         toFileResult.result += self.indexes[toField][fromValue]

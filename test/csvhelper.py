@@ -90,10 +90,10 @@ def test():
     
     rows = [("data1", "data2", "data3", "data4", "data5", "data6", "data7", "data8", "data9", "data10")]
     
-    for i in range(0, 10000):
+    for i in range(0, 5000000):
         rows.append([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         
-    write("scale_output4.csv", rows)
+    write("scale_output.csv", rows)
     print("fin")
 
 if __name__ == "__main__":

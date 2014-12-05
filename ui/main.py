@@ -10,7 +10,8 @@ from tkinter import Tk, Listbox, Frame, Text, Button, Scrollbar, \
 from tkinter.constants import END, N, E, W, S, HORIZONTAL, VERTICAL, DISABLED, \
     NORMAL
 from tkinter.filedialog import askopenfilename
-from tkinter.ttk import Combobox, Separator
+from tkinter.ttk import Combobox, Separator, Checkbutton
+import traceback
 
 from handler import loghandler
 from handler.loghandler import SingleFileSearch, JoinFileSearch, Search, \
@@ -18,21 +19,17 @@ from handler.loghandler import SingleFileSearch, JoinFileSearch, Search, \
     ContainSearchCondition
 from model.filemodel import FileModel
 
-
 class LogUI(Frame):
     
     _DEFAULT_CONVERSION_PATTERN = "%d [%t] %p %c - %m"
     
-    _DEFAULT_DATE_PATTERN_FOR_JAVA = "yyyy-MM-dd HH:mm:ss,SSS"
+    _DEFAULT_DATE_PATTERN_FOR_LOG = "%Y-%m-%d %H:%M:%S,%f"
     
     def __init__(self, parent):
         Frame.__init__(self, parent)   
         self.parent = parent
         
         self.fileModels = []
-#         fileModel1 = FileModel("C:/Users/chen_xi/test1.csv", searchConds=[], relation="and", joinCondTuples=[])
-#         fileModel2 = FileModel("C:/Users/chen_xi/test2.csv", searchConds=[], relation="and", joinCondTuples=[])
-#         self.fileModels = [fileModel1, fileModel2]
         
         self._initUI()
         self.selectedFileIndex = -1
@@ -269,27 +266,76 @@ class LogUI(Frame):
         separator = Separator(self, orient=HORIZONTAL)
         separator.grid(row=1, columnspan=4, sticky=W + E, padx=5, pady=5)
         
+        self.consoleOutputVar = IntVar(value=1)
+        consoleOutputBtn = Checkbutton(self, text="Console Ouput", variable=self.consoleOutputVar)
+        consoleOutputBtn.grid(row=2, column=0, padx=5, pady=5, sticky=W)
+        
+        self.fileOutputVar = IntVar()
+        fileOutputBtn = Checkbutton(self, text="File Ouput", variable=self.fileOutputVar)
+        fileOutputBtn.grid(row=2, column=1, padx=5, pady=5, sticky=W)
+        
         self.console = Text(self)
-        self.console.grid(row=2, columnspan=4, sticky=W + E, padx=5, pady=5)
+        self.console.grid(row=3, columnspan=4, sticky=W + E, padx=5, pady=5)
         
         vsl = Scrollbar(self, orient=VERTICAL)
-        vsl.grid(row=2, column=4, sticky=N + S + W)
+        vsl.grid(row=3, column=4, sticky=N + S + W)
         
         hsl = Scrollbar(self, orient=HORIZONTAL)
-        hsl.grid(row=3, column=0, columnspan=4, sticky=W + E + N)
+        hsl.grid(row=4, column=0, columnspan=4, sticky=W + E + N)
         
         hsl.config(command=self.console.xview)
         vsl.config(command=self.console.yview)
         
         resBtn = Button(self, text="Search", width=7, command=self._showSearchResult)
-        resBtn.grid(row=4, column=3, padx=5, pady=5, sticky=E)
+        resBtn.grid(row=5, column=3, padx=5, pady=5, sticky=E)
         
     
     def _showSearchResult(self):
-        res = self._searchResult()
-        formatRes = self._formatSearchResult(res)
-        self.show(formatRes)
+        try:
+            res = self._searchResult()
+            output = self._createConsoleSummaryOutput(res)
+            if self.consoleOutputVar.get() == 1:
+                output += "\n" + self._createConsoleDetailOutput(res)
+            if self.fileOutputVar.get() == 1:
+                self._outputToFile(res)
+        except Exception:
+            output = "Error!\r\n" + traceback.format_exc()
+        self.show(output)
         
+    def _outputToFile(self, result):
+        fileResults = result.results
+        for fileModel in self.fileModels:
+            fileName = fileModel.reader.fileName
+            outputFileName = self._createOutputFileName(fileName)
+            writer = loghandler.createWriter(outputFileName)
+            displayFields = fileModel.displayFields
+            fileResult = fileResults[fileName]
+            writer.write(fileResult.result, displayFields)
+            
+    def _createOutputFileName(self, fileName):
+        ns = fileName.split(sep=r".")
+        return "".join(ns[:-1]) + "-search." + "".join(ns[-1:])
+    
+    def _createConsoleDetailOutput(self, result):
+        output = ""
+        fileResults = result.results
+        for fileModel in self.fileModels:
+            fileName = fileModel.reader.fileName
+            fileResult = fileResults[fileName]
+            displayFields = fileModel.displayFields
+            output += self._formatFileResult(fileResult, displayFields)
+            output += "\r\n"
+        return output
+    
+    def _createConsoleSummaryOutput(self, result):
+        output = "Summary\r\n"
+        output += "Time Cost: " + str(result.timeCost) + " Seconds\r\n"
+        fileResults = result.results
+        for fileModel in self.fileModels:
+            fileName = fileModel.reader.fileName
+            fileResult = fileResults[fileName]
+            output += fileName + "    Size: " + str(len(fileResult.result)) + "\r\n"
+        return output
     
     def _searchResult(self):
         fileSearchs = []
@@ -321,29 +367,6 @@ class LogUI(Frame):
         search = Search(fileSearchs, joinSearchs)
         return search.process()
     
-    
-    def _formatSearchResult(self, searchResult):
-        formatRes = self._formatSummary(searchResult) + "\r\n"
-        fileResults = searchResult.results
-        for fileModel in self.fileModels:
-            fileName = fileModel.reader.fileName
-            fileResult = fileResults[fileName]
-            displayFields = fileModel.displayFields
-            formatRes += self._formatFileResult(fileResult, displayFields)
-            formatRes += "\r\n"
-        return formatRes
-    
-    
-    def _formatSummary(self, searchResult):
-        res = "Summary\r\n"
-        res += "Time Cost: " + str(searchResult.timeCost) + " Seconds\r\n"
-        fileResults = searchResult.results
-        for fileModel in self.fileModels:
-            fileName = fileModel.reader.fileName
-            fileResult = fileResults[fileName]
-            res += fileName + "    Size: " + str(len(fileResult.result)) + "\r\n"
-        return res
-        
     
     def _formatFileResult(self, fileResult, displayFields):
         res = ""
@@ -377,7 +400,7 @@ class LogUI(Frame):
                 reader = loghandler.createReader(selectedFile)
             elif loghandler.isLog(selectedFile):
                 reader = loghandler.createReader(selectedFile, self._DEFAULT_CONVERSION_PATTERN, \
-                                                 self._DEFAULT_DATE_PATTERN_FOR_JAVA)
+                                                 self._DEFAULT_DATE_PATTERN_FOR_LOG)
             newModel = FileModel(reader, searchConds=[], relation="and", joinCondTuples=[], \
                                  displayFields=copy.copy(reader.getFields()))
             self.fileModels.append(newModel)
@@ -505,7 +528,7 @@ class LogUI(Frame):
         conversionPatternInput.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky=W + E)
         conversionPatternInput.insert(0, fileModel.reader.conversionPattern)
         
-        datePatternLabel = Label(window, text="Date Pattern (Java): ")
+        datePatternLabel = Label(window, text="Date Pattern: ")
         datePatternLabel.grid(row=2, column=0, padx=5, pady=5, sticky=W)
         
         datePatternInput = Entry(window, width=30)
@@ -576,33 +599,38 @@ class LogUI(Frame):
         
         searchDataType = StringVar()
         
+        typeLabel = Label(window, text="Search Type: ")
+        typeLabel.grid(row=2, column=0, padx=5, pady=5, sticky=W)
+        
         def _enableEqual():
             valueInput.config(state=NORMAL)
             minInput.config(state=DISABLED)
             maxInput.config(state=DISABLED)
+            equalBtn.select()
         
         def _enableContain():
             valueInput.config(state=NORMAL)
             minInput.config(state=DISABLED)
             maxInput.config(state=DISABLED)
+            containBtn.select()
             
         def _enableRange():
             valueInput.config(state=DISABLED)
             minInput.config(state=NORMAL)
             maxInput.config(state=NORMAL)
+            rangeBtn.select()
             
         def _enableStr():
             datePatternInput.config(state=DISABLED)
+            strBtn.select()
         
         def _enableNumber():
             datePatternInput.config(state=DISABLED)
+            numberBtn.select()
             
         def _enableDate():
             datePatternInput.config(state=NORMAL)
-            
-            
-        typeLabel = Label(window, text="Search Type: ")
-        typeLabel.grid(row=2, column=0, padx=5, pady=5, sticky=W)
+            dateBtn.select()
         
         equalBtn = Radiobutton(window, text="Equal", variable=searchKind, value=1, command=_enableEqual)
         equalBtn.grid(row=2, column=1, columnspan=1, padx=5, pady=5, sticky=W)
@@ -625,8 +653,8 @@ class LogUI(Frame):
                               variable=searchDataType, value=RangeSearchCondition.TYPE_DATE, command=_enableDate)
         dateBtn.grid(row=4, column=2, columnspan=1, padx=5, pady=5, sticky=W)
         
-        equalBtn.select()
-        strBtn.select()
+        _enableEqual()
+        _enableStr()
         
         # init value
         fieldVar.set(cond.field)
@@ -639,18 +667,19 @@ class LogUI(Frame):
         elif isinstance(cond, RangeSearchCondition):
             _enableRange()
             if cond.dataType == RangeSearchCondition.TYPE_DATE:
+                _enableDate()
                 minInput.insert(0, time.strftime(RangeSearchCondition.DEFAULT_DATE_FORMAT, cond.valMin))
                 maxInput.insert(0, time.strftime(RangeSearchCondition.DEFAULT_DATE_FORMAT, cond.valMax))
                 datePatternInput.insert(0, cond.datePattern)
-                _enableDate()
             elif cond.dataType == RangeSearchCondition.TYPE_NUMBER:
+                _enableNumber()
                 minInput.insert(0, str(cond.valMin))
                 maxInput.insert(0, str(cond.valMax))
-                _enableNumber()
             elif cond.dataType == RangeSearchCondition.TYPE_STRING:
+                _enableStr()
                 minInput.insert(0, cond.valMin)
                 maxInput.insert(0, cond.valMax)
-                _enableStr()
+                
                 
             
         def _newCond():

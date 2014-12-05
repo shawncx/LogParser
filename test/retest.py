@@ -55,37 +55,15 @@ def convertToPattern(conversionPattern):
 
 if __name__ == "__main__":
     
-    a = "2014-11-20 16:30:28,406 [main] DEBUG factory.S2ContainerFactory - created(path=convention.dicon)\n"
+    a = "[2014/11/18 18:00:03]"
     
-    timePatternStr = r"\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3}"
+    timePatternStr = r"\[(?P<d>(?:\d{2}|\d{4})\/(?:\d{1}|\d{2})\/(?:\d{1}|\d{2})\s(?:\d{1}|\d{2}):(?:\d{1}|\d{2}):(?:\d{1}|\d{2}))\]"
     
-    threadPatternStr = r".*"
     
-    priorityPatternStr = r"\S*"
+    p = re.compile(timePatternStr)
     
-    classPatternStr = r"\S*"
+    print(p.match(a))
     
-    messagePatternStr = r".*"
-    
-    nextLinePatternStr = r"\n"
-    
-    blankPatternStr = r"\s"
-    
-    conversionPattern = "%d [%t] %-5p %c - %m%n"
-    
-    pattern = convertToPattern(conversionPattern)
-    print(pattern)
-    
-    p = re.compile(pattern)
-    
-    match = p.match(a)
-    if match:
-        print(_TIME + ": " + match.group(_TIME))
-        print(_CLASS+ ": " + match.group(_CLASS))
-        print(_THREAD + ": " + match.group(_THREAD)) 
-        print(_PRIORITY + ": " + match.group(_PRIORITY))
-        print(_MESSAGE + ": " + match.group("_MESSAGE"))
-              
               
               
               
