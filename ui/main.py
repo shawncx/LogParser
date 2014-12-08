@@ -19,6 +19,7 @@ from handler.loghandler import SingleFileSearch, JoinFileSearch, Search, \
     ContainSearchCondition
 from model.filemodel import FileModel
 
+
 class LogUI(Frame):
     
     _DEFAULT_CONVERSION_PATTERN = "%d [%t] %p %c - %m"
@@ -192,6 +193,7 @@ class LogUI(Frame):
         if index >= 0:
             selectedFile.displayFields.append(self._getSelectedNoDisplayField())
             self._inflateFieldPanel(selectedFile)
+            selectedFile.displayFields = list(copy.copy(self.displayFieldList.get(0, END)))
     
     
     def _removeFieldFromDisplay(self):
@@ -727,7 +729,7 @@ class LogUI(Frame):
         title = Label(window, text="New Search Condition")
         title.grid(row=0, column=0, padx=5, pady=5, sticky=W + N)
         
-        fileNamelabel = Label(window, text="Target Field Name: ")
+        fileNamelabel = Label(window, text="Target File Name: ")
         fileNamelabel.grid(row=1, column=0, padx=5, pady=5, sticky=W)
         
         fileVar = StringVar(window)

@@ -9,7 +9,7 @@ from csv import DictReader, DictWriter
 import re
 import time
 
-DEFAULT_ENCODING = "UTF-8"
+DEFAULT_ENCODING = "MS932"
 
 
 def createReader(fileName, conversionPattern=None, datePattern=None):
@@ -29,14 +29,14 @@ def createWriter(fileName):
     return writer
 
 def isCSV(fileName):
-    partten = re.compile(r"\S*\.csv\Z")
+    partten = re.compile(r".*\.csv\Z")
     if partten.match(fileName):
         return True
     else:
         return False
     
 def isLog(fileName):
-    partten = re.compile(r"\S*\.log\Z")
+    partten = re.compile(r".*\.log\Z")
     if partten.match(fileName):
         return True
     else:
@@ -58,7 +58,7 @@ class CSVWriter(Writer):
         
     def write(self, recordDicts, fieldNames):
         with open(self.fileName, "w", newline='', encoding=DEFAULT_ENCODING) as file:
-            writer = DictWriter(file, fieldNames)
+            writer = DictWriter(file, fieldNames, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(recordDicts);
         
