@@ -22,9 +22,9 @@ from model.filemodel import FileModel
 
 class LogUI(Frame):
     
-    _DEFAULT_CONVERSION_PATTERN = "%d [%t] %p %c - %m"
+    _DEFAULT_CONVERSION_PATTERN = "[%d] %m"
     
-    _DEFAULT_DATE_PATTERN_FOR_LOG = "%Y-%m-%d %H:%M:%S,%f"
+    _DEFAULT_DATE_PATTERN_FOR_LOG = "%Y/%m/%d %H:%M:%S:%f"
     
     def __init__(self, parent):
         Frame.__init__(self, parent)   
